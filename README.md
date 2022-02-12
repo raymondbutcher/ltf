@@ -3,7 +3,7 @@
 LTF is a lightweight, transparent wrapper for Terraform that adds only 2 features:
 
 * Allow variables in backend configuration blocks.
-* Automatically use configuration from parent directories. (not implemented)
+* Automatically use configuration from parent directories.
 
 Because LTF is a transparent wrapper, all standard Terraform command line options can be used when using LTF.
 
