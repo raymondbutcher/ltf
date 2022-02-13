@@ -1,15 +1,75 @@
-# ltf
+# LTF
 
-LTF is a lightweight, transparent wrapper for Terraform that adds only 2 features:
+> Status: largely not implemented and untested
 
-* Allow variables in backend configuration blocks.
-* Automatically use configuration from parent directories.
+LTF is a lightweight Terraform wrapper that adds minimal features to make it easier to work with Terraform projects.
 
-Because LTF is a transparent wrapper, all standard Terraform command line options can be used when using LTF.
+Features:
 
-## Status
+* DRY configuration:
+  * Use variables files from the current directory with configuration files from a parent directory.
+* Dynamic backends:
+  * Allow use of variables in backend configuration blocks.
+  * Automatically use tfbackend files from the current directory.
 
-This project is just an idea that has not been implemented.
+LTF is a *transparent* wrapper, so all standard Terraform command line options can be used when using LTF. LTF does not get in the way.
+
+A standard LTF project looks like this:
+
+```
+.
+├── ecr <--------------------------------------------- configuration directory
+│   ├── main.tf <------------------------------------- configuration file(s)
+│   ├── dev
+│   │   ├── ecr.dev.auto.tfvars
+│   │   └── ecr.dev.s3.tfbackend
+│   └── live
+│       ├── eu-central-1
+│       │   ├── ecr.live.eu-central-1.auto.tfvars
+│       │   └── ecr.live.eu-central-1.s3.tfbackend
+│       └── eu-west-1 <------------------------------- working directory
+│           ├── ecr.live.eu-west-1.auto.tfvars <------ variables file(s)
+│           └── ecr.live.eu-west-1.s3.tfbackend <----- backend file(s)
+└── iam
+    ├── main.tf
+    ├── dev
+    │   ├── iam.dev.auto.tfvars
+    │   └── iam.dev.s3.tfbackend
+    └── live
+        ├── iam.live.auto.tfvars
+        └── iam.live.s3.tfbackend
+```
+
+Typical usage would look like this:
+
+```
+$ cd ecr/live/eu-central-1
+$ ltf init
+$ ltf plan
+$ ltf apply
+$ cd ../eu-west-1
+$ ltf init
+$ ltf plan
+$ ltf apply -target=aws_ecr_repository.this
+```
+
+## Why choose LTF over other approaches?
+
+LTF has these benefits:
+
+* LTF is a transparent wrapper, so all Terraform actions and arguments can be used.
+* LTF is released as a single binary, so installation is easy.
+* LTF keeps your configuration DRY, using a simple project structure with no extra files.
+* LTF requires minimal learning to use.
+* LTF runs Terraform in the current working directory, so there's no build/cache directory to complicate things.
+
+But LTF does not aim to do everything:
+
+* LTF does not create backend resources for you (see Pretf, Terragrunt, Terraspace).
+* LTF does not support generating Terraform configuration using another language (see Pretf, Terraspace).
+* LTF does not support module/stack/state dependencies (see Terragrunt, Terraspace).
+* LTF does not support remote configurations (see Pretf, Terragrunt).
+* LTF does not support run-all or similar (see Terragrunt, Terraspace).
 
 ## Installation
 
@@ -24,10 +84,25 @@ Example:
 ```
 $ ltf init
 $ ltf plan
-$ ltf apply -target=random_id.this
+$ ltf apply -target=aws_ecr_repository.this
 ```
 
-## Feature: allow variables in backend configuration blocks
+## Feature: DRY configuration
+
+LTF makes it easy to work with multiple environments or deployments of the same configuration. It does this by using variables from the current directory with configuration from a parent directory.
+
+<details>
+  <summary>How does it work?</summary>
+
+> When LTF runs and finds no `tf` files in the current directory, it does the following:
+>
+> * Finds the first parent directory containing `tf` files and adds `-chdir=$dir` to the command line arguments, to make Terraform change to that directory when it runs.
+> * Updates the `TF_DATA_DIR` environment variable to make Terraform use the `.terraform` directory inside the current directory, next to the `tfvars` files rather than the configuration files.
+> * Finds `tfvars` files in the current directory and updates the `TF_CLI_ARGS_plan` and `TF_CLI_ARGS_apply` environment variables to contain `-var-file=$filename` for each file. LTF follows Terraform's [ rules](https://www.terraform.io/language/values/variables#variable-definition-precedence) for which `tfvars` files to use.
+> * Runs Terraform, passing along all command line arguments.
+</details>
+
+## Feature: Dynamic backends
 
 LTF solves the [issue](https://github.com/hashicorp/terraform/issues/13022) of Terraform not supporting input variables in the backend configuration block. Note that LTF only adds support for input variables. It does not support accessing local values, nor data sources.
 
@@ -41,53 +116,17 @@ LTF solves the [issue](https://github.com/hashicorp/terraform/issues/13022) of T
 > * Passes each line from the rendered backend block to Terraform using the `-backend-config=` command line argument, which takes precedence over the values in the file.
 </details>
 
-## Feature: automatically use configuration from parent directories
-
-LTF makes it easy to work with multiple environments. It does this by using variables from the current directory with configuration from a parent directory.
-
-This allows for the following project structure:
-
-```
-terraform
-├── ecr
-│   ├── dev
-│   │   └── ecr.dev.auto.tfvars
-│   ├── live
-│   │   ├── eu-central-1
-│   │   │   └── ecr.live.eu-central-1.auto.tfvars
-│   │   └── eu-west-1
-│   │       └── ecr.live.eu-west-1.auto.tfvars
-│   └── main.tf
-└── iam
-    ├── dev
-    │   └── iam.dev.auto.tfvars
-    ├── live
-    │   └── iam.live.auto.tfvars
-    └── main.tf
-```
-
-Usage looks like this:
-
-```
-$ cd ecr/dev
-$ ltf plan
-$ cd ../live/eu-west-1
-$ ltf plan
-```
+LTF also automatically uses backend configuration files from the current directory. This allows storing backend configuration in files alongside variables files.
 
 <details>
   <summary>How does it work?</summary>
 
-> When LTF runs and finds `tfvars` files in the current directory, but no `tf` files, then it does the following:
+> When LTF runs and finds `tfbackend` files in the current directory, it does the following:
 >
-> * Uses the current directory as the *variables directory*.
-> * Finds the first parent directory containing `tf` files and uses it as the *configuration directory*.
-> * Reads `tfvars` files from the *variables directory* and exports matching `TF_VAR_name` environment variables.
-> * Exports the `TF_DATA_DIR=$variablesdir/.terraform` environment variable so that Terrafor places the `.terraform` directory in the *variables directory*.
-> * Runs `terraform -chdir=$configurationdir ...`
+> * Finds `tfbackend` files in the current directory and updates the `TF_CLI_ARGS_init` environment variable to contain `-backend-config=$filename` for each file.
 </details>
 
-## Other ideas for later
+## Other ideas for later or never
 
 * Creating backend resources.
   * Different backends have different methods for creation so this tool could only support some, if it supports any at all.
@@ -105,3 +144,10 @@ $ ltf plan
   * Also consider the [aws_kms_secrets](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/kms_secrets) data source.
 * Remote modules, e.g. Terragrunt.
   * Probably will not implement because the project structure is too different.
+* Hooks system.
+  * Would be good to allow integrating SOPS, for example.
+  * Might need to support a file in any location (current dir or parent dirs).
+    * With tfvars
+    * With config
+    * In top of git repo
+  * Maybe call it `ltf.yaml`

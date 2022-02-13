@@ -1,0 +1,4 @@
+bucket  = "ltf-project-dev-eu-west-1"
+key     = "example/ecr/dev/eu-west-1/terraform.tfstate"
+region  = "eu-west-1"
+profile = "ltf-dev"

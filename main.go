@@ -7,10 +7,11 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
-func findConfigDir(dir string, files []string) (string, error) {
+func findConfigDir(dir string) (string, error) {
 	var err error
 	var lastDir string
 	for {
@@ -26,6 +27,12 @@ func findConfigDir(dir string, files []string) (string, error) {
 			return "", errors.New("checked all parent directories")
 		}
 
+		// Get the file names in this directory.
+		files, err := getFileNames(dir)
+		if err != nil {
+			return "", fmt.Errorf("error reading directory %s: %s", dir, err)
+		}
+
 		// Return this directory if it contains configuration files.
 		if hasConfFile(files) {
 			return dir, nil
@@ -34,11 +41,16 @@ func findConfigDir(dir string, files []string) (string, error) {
 		// Not found, look in the parent directory next time.
 		lastDir = dir
 		dir = path.Join(dir, "..")
-		files, err = getFileNames(dir)
-		if err != nil {
-			return "", fmt.Errorf("error reading directory %s: %s", dir, err)
+	}
+}
+
+func getChdirArg(args []string) string {
+	for _, arg := range args[1:] {
+		if strings.HasPrefix(arg, "-chdir=") {
+			return arg[7:]
 		}
 	}
+	return ""
 }
 
 func getFileNames(dir string) ([]string, error) {
@@ -53,6 +65,50 @@ func getFileNames(dir string) ([]string, error) {
 	return names, err
 }
 
+func filterTfbackend(files []string) []string {
+	matches := []string{}
+	for _, name := range files {
+		if matched, _ := path.Match("*.tfbackend", name); matched {
+			matches = append(matches, name)
+		}
+	}
+	return matches
+}
+
+func filterTfvars(files []string) []string {
+	// https://www.terraform.io/language/values/variables#variable-definition-precedence
+
+	matches := []string{}
+
+	// The terraform.tfvars file, if present.
+	for _, name := range files {
+		if name == "terraform.tfvars" {
+			matches = append(matches, name)
+		}
+	}
+
+	// The terraform.tfvars.json file, if present.
+	for _, name := range files {
+		if name == "terraform.tfvars.json" {
+			matches = append(matches, name)
+		}
+	}
+
+	// Any *.auto.tfvars or *.auto.tfvars.json files, processed in lexical order of their filenames.
+	files = files[:]
+	sort.Strings(files)
+	for _, name := range files {
+		if matched, _ := path.Match("*.auto.tfvars", name); matched {
+			matches = append(matches, name)
+		}
+		if matched, _ := path.Match("*.auto.tfvars.json", name); matched {
+			matches = append(matches, name)
+		}
+	}
+
+	return matches
+}
+
 func hasConfFile(files []string) bool {
 	for _, name := range files {
 		if matched, _ := path.Match("*.tf", name); matched {
@@ -65,82 +121,106 @@ func hasConfFile(files []string) bool {
 	return false
 }
 
-func hasVarsFile(files []string) bool {
-	for _, name := range files {
-		if matched, _ := path.Match("*.tfvars", name); matched {
-			return true
-		}
-		if matched, _ := path.Match("*.tfvars.json", name); matched {
-			return true
-		}
-	}
-	return false
-}
-
 func main() {
-	// Prevent users from using the -chdir command line argument.
-	for _, arg := range os.Args[1:] {
-		if strings.HasPrefix(arg, "-chdir=") {
-			fmt.Fprintf(os.Stderr, "Invalid argument for ltf: -chdir\n\n")
-			fmt.Fprintf(os.Stderr, "ltf decides the value for -chdir when it runs terraform,\n")
-			fmt.Fprintf(os.Stderr, "so -chdir cannot be used as a command line argument for ltf.\n")
-			os.Exit(1)
-		}
-	}
-
-	// Read the current working directory.
-	cwd, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading working directory: %s\n", err)
-		os.Exit(1)
-	}
-	cwd, err = filepath.Abs(cwd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting absolute path %s: %s\n", cwd, err)
-		os.Exit(1)
-	}
-	files, err := getFileNames(cwd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error listing files %s: %s\n", cwd, err)
-		os.Exit(1)
-	}
-
-	// Prevent users from running in a directory with no Terraform files of any kind.
-	// This checks for both configuration and variable files.
-	if !hasConfFile(files) && !hasVarsFile(files) {
-		fmt.Fprint(os.Stderr, "Could not find Terraform variables or configuration files in the current directory\n")
-		os.Exit(1)
-	}
-
-	// Locate the directory with Terraform configuration files.
-	// This can be the current directory or any parent directory.
-	confDir, err := findConfigDir(cwd, files)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error finding Terraform configuration files: %s\n", err)
-		os.Exit(1)
-	}
-
 	// Start building the Terraform command to run.
 	cmd := exec.Command("terraform")
 	cmd.Env = os.Environ()
 
-	if confDir != cwd {
-		// Make Terraform change to the configuration directory.
-		cmd.Args = append(cmd.Args, fmt.Sprintf("-chdir=%s", confDir))
+	// Get the current working directory.
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting current working directory: %s\n", err)
+		os.Exit(1)
+	}
+	cwdFiles, err := getFileNames(cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading current working directory %s: %s\n", cwd, err)
+		os.Exit(1)
+	}
 
-		// But keep the data directory inside the current directory.
+	// Keep the data directory inside the current directory
+	// unless the TF_DATA_DIR environment variable is already set.
+	if os.Getenv("TF_DATA_DIR") == "" {
 		dataDir := path.Join(cwd, ".terraform")
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TF_DATA_DIR=%s", dataDir))
 	}
 
-	// TODO: look in current directory for tfvars files and export them with TF_VAR_name=$value
+	// Determine the Terraform configuration directory to use.
+	// If the -chdir argument was provided then use that.
+	confDir := getChdirArg(os.Args)
+	if confDir == "" {
+		// Find the closest directory with Terraform configuration files.
+		// This can be the current directory or any parent directory.
+		confDir, err = findConfigDir(cwd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error finding Terraform configuration files: %s\n", err)
+			os.Exit(1)
+		}
+
+		// Make Terraform change to the configuration directory
+		// by adding the -chdir argument to the Terraform command.
+		if confDir != cwd {
+			rel, err := filepath.Rel(cwd, confDir)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error resolving relative path %s from %s: %s\n", confDir, cwd, err)
+				os.Exit(1)
+			}
+			cmd.Args = append(cmd.Args, fmt.Sprintf("-chdir=%s", rel))
+		}
+	}
+
+	// Look in current directory for tfbackend files to use.
+	backendFiles := filterTfbackend(cwdFiles)
+	if len(backendFiles) > 0 {
+		initArgs := []string{}
+		initArg := os.Getenv("TF_CLI_ARGS_init")
+		if initArg != "" {
+			initArgs = append(initArgs, initArg)
+		}
+		for _, name := range backendFiles {
+			abs := path.Join(cwd, name)
+			rel, err := filepath.Rel(confDir, abs)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error resolving relative path %s from %s: %s\n", abs, confDir, err)
+				os.Exit(1)
+			}
+			initArgs = append(initArgs, fmt.Sprintf("-backend-config=%s", rel))
+		}
+		os.Setenv("TF_CLI_ARGS_init", strings.Join(initArgs, " "))
+		fmt.Fprintf(os.Stderr, "TF_CLI_ARGS_init=%s\n", os.Getenv("TF_CLI_ARGS_init"))
+	}
+
+	// Look in current directory for tfvars files to automatically use.
+	tfvarsFiles := filterTfvars(cwdFiles)
+	if len(tfvarsFiles) > 0 {
+		for _, argName := range []string{"plan", "apply"} {
+			envName := fmt.Sprintf("TF_CLI_ARGS_%s", argName)
+			argValues := []string{}
+			argValue := os.Getenv(envName)
+			if argValue != "" {
+				argValues = append(argValues, argValue)
+			}
+			for _, name := range tfvarsFiles {
+				abs := path.Join(cwd, name)
+				rel, err := filepath.Rel(confDir, abs)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error resolving relative path %s from %s: %s\n", abs, confDir, err)
+					os.Exit(1)
+				}
+				argValues = append(argValues, fmt.Sprintf("-var-file=%s", rel))
+			}
+			os.Setenv(envName, strings.Join(argValues, " "))
+			fmt.Fprintf(os.Stderr, "%s=%s\n", envName, os.Getenv(envName))
+		}
+	}
 
 	// TODO: find backend configuration, render as HCL, add env vars TF_CLI_ARGS_init=-backend-config=$line
 
-	// Pass all other command line arguments to Terraform.
+	// Pass all command line arguments to Terraform.
 	cmd.Args = append(cmd.Args, os.Args[1:]...)
 
 	// Run the Terraform command.
+	fmt.Fprintln(os.Stderr, strings.Join(cmd.Args, " "))
 	if err := cmd.Run(); err != nil {
 		if exitErr, isExitError := err.(*exec.ExitError); isExitError {
 			os.Exit(exitErr.ExitCode())

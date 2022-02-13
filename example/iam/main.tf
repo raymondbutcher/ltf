@@ -16,7 +16,7 @@ variable "aws_region" {
 
 terraform {
   backend "s3" {
-    bucket  = "ltf-project"
+    bucket  = "ltf-project-${var.env}-${var.aws_region}"
     key     = "example/${var.app}/${var.env}/${var.aws_region}/terraform.tfstate"
     region  = var.aws_region
     profile = var.aws_profile
