@@ -91,9 +91,9 @@ LTF searches the directory tree for a Terraform configuration directory, tfvars 
 When LTF finds no `*.tf` and `*.tf.json` files in the current directory, it does the following:
 
 * Finds the first parent directory containing `*.tf` or `*.tf.json` files and adds `-chdir=$dir` to the Terraform command line arguments, to make Terraform change to that directory when it runs.
-* Updates the `TF_DATA_DIR` environment variable to make Terraform use the `.terraform` directory inside the current directory, rather than in the configuration directory.
 
 It also does the following:
 
+* Updates the `TF_DATA_DIR` environment variable to make Terraform use the `.terraform` directory inside the current directory, rather than in the configuration directory.
 * Finds `*.tfvars` and `*.tfvars.json` files in the current directory and parent directories, stopping at the configuration directory, then updates the `TF_CLI_ARGS_plan` and `TF_CLI_ARGS_apply` environment variables to contain `-var-file=$filename` for each file. Terraform's [rules](https://www.terraform.io/language/values/variables#variable-definition-precedence) are followed when finding files to use.
 * Finds `*.tfbackend` files in the current directory and parent directories, stopping at the configuration directory, then updates the `TF_CLI_ARGS_init` environment variable to contain `-backend-config=$filename` for each file.

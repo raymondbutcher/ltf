@@ -15,12 +15,7 @@ variable "aws_region" {
 }
 
 terraform {
-  backend "s3" {
-    bucket  = "ltf-project"
-    key     = "example/${var.app}/${var.env}/${var.aws_region}/terraform.tfstate"
-    region  = var.region
-    profile = var.aws_profile
-  }
+  backend "s3" {}
 }
 
 resource "random_id" "ecr" {

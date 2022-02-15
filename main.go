@@ -125,6 +125,9 @@ func main() {
 	// Start building the Terraform command to run.
 	cmd := exec.Command("terraform")
 	cmd.Env = os.Environ()
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
 	// Get the current working directory.
 	cwd, err := os.Getwd()
@@ -136,13 +139,6 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading current working directory %s: %s\n", cwd, err)
 		os.Exit(1)
-	}
-
-	// Keep the data directory inside the current directory
-	// unless the TF_DATA_DIR environment variable is already set.
-	if os.Getenv("TF_DATA_DIR") == "" {
-		dataDir := path.Join(cwd, ".terraform")
-		cmd.Env = append(cmd.Env, fmt.Sprintf("TF_DATA_DIR=%s", dataDir))
 	}
 
 	// Determine the Terraform configuration directory to use.
@@ -169,25 +165,11 @@ func main() {
 		}
 	}
 
-	// Look in current directory for tfbackend files to use.
-	backendFiles := filterTfbackend(cwdFiles)
-	if len(backendFiles) > 0 {
-		initArgs := []string{}
-		initArg := os.Getenv("TF_CLI_ARGS_init")
-		if initArg != "" {
-			initArgs = append(initArgs, initArg)
-		}
-		for _, name := range backendFiles {
-			abs := path.Join(cwd, name)
-			rel, err := filepath.Rel(confDir, abs)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error resolving relative path %s from %s: %s\n", abs, confDir, err)
-				os.Exit(1)
-			}
-			initArgs = append(initArgs, fmt.Sprintf("-backend-config=%s", rel))
-		}
-		os.Setenv("TF_CLI_ARGS_init", strings.Join(initArgs, " "))
-		fmt.Fprintf(os.Stderr, "TF_CLI_ARGS_init=%s\n", os.Getenv("TF_CLI_ARGS_init"))
+	// Keep the data directory inside the current directory
+	// unless the TF_DATA_DIR environment variable is already set.
+	if os.Getenv("TF_DATA_DIR") == "" {
+		dataDir := path.Join(cwd, ".terraform")
+		cmd.Env = append(cmd.Env, fmt.Sprintf("TF_DATA_DIR=%s", dataDir))
 	}
 
 	// Look in current directory for tfvars files to automatically use.
@@ -209,9 +191,32 @@ func main() {
 				}
 				argValues = append(argValues, fmt.Sprintf("-var-file=%s", rel))
 			}
-			os.Setenv(envName, strings.Join(argValues, " "))
-			fmt.Fprintf(os.Stderr, "%s=%s\n", envName, os.Getenv(envName))
+			env := fmt.Sprintf("%s=%s", envName, strings.Join(argValues, " "))
+			cmd.Env = append(cmd.Env, env)
+			fmt.Fprintf(os.Stderr, "%s\n", env)
 		}
+	}
+
+	// Look in current directory for tfbackend files to use.
+	backendFiles := filterTfbackend(cwdFiles)
+	if len(backendFiles) > 0 {
+		argValues := []string{}
+		argValue := os.Getenv("TF_CLI_ARGS_init")
+		if argValue != "" {
+			argValues = append(argValues, argValue)
+		}
+		for _, name := range backendFiles {
+			abs := path.Join(cwd, name)
+			rel, err := filepath.Rel(confDir, abs)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error resolving relative path %s from %s: %s\n", abs, confDir, err)
+				os.Exit(1)
+			}
+			argValues = append(argValues, fmt.Sprintf("-backend-config=%s", rel))
+		}
+		env := fmt.Sprintf("TF_CLI_ARGS_init=%s", strings.Join(argValues, " "))
+		cmd.Env = append(cmd.Env, env)
+		fmt.Fprintf(os.Stderr, "%s\n", env)
 	}
 
 	// TODO: find backend configuration, render as HCL, add env vars TF_CLI_ARGS_init=-backend-config=$line
