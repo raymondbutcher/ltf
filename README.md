@@ -81,7 +81,7 @@ LTF searches the directory tree for a Terraform configuration directory, tfvars 
 
 When LTF finds no `*.tf` and `*.tf.json` files in the current directory, it does the following:
 
-* Finds the first parent directory containing `*.tf` or `*.tf.json` files and adds `-chdir=$dir` to the Terraform command line arguments, to make Terraform change to that directory when it runs.
+* Finds the closest parent directory containing `*.tf` or `*.tf.json` files and adds `-chdir=$dir` to the Terraform command line arguments, to make Terraform change to that directory when it runs.
 
 It also does the following:
 
