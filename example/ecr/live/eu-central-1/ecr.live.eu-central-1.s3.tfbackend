@@ -1,4 +1,0 @@
-bucket  = "ltf-project-live-eu-central-1"
-key     = "example/ecr/live/eu-central-1/terraform.tfstate"
-region  = "eu-central-1"
-profile = "ltf-live"

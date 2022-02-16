@@ -14,40 +14,31 @@ LTF is a *transparent* wrapper, so all standard Terraform command line options c
 A standard LTF project looks like this:
 
 ```
-.
-├── ecr <--------------------------------------------- configuration directory
-│   ├── main.tf <------------------------------------- configuration file(s)
-│   ├── dev
-│   │   ├── ecr.dev.auto.tfvars
-│   │   └── ecr.dev.s3.tfbackend
-│   └── live
-│       ├── eu-central-1
-│       │   ├── ecr.live.eu-central-1.auto.tfvars
-│       │   └── ecr.live.eu-central-1.s3.tfbackend
-│       └── eu-west-1 <------------------------------- working directory
-│           ├── ecr.live.eu-west-1.auto.tfvars <------ variables file(s)
-│           └── ecr.live.eu-west-1.s3.tfbackend <----- backend file(s)
-└── iam
-    ├── main.tf
-    ├── dev
-    │   ├── iam.dev.auto.tfvars
-    │   └── iam.dev.s3.tfbackend
-    └── live
-        ├── iam.live.auto.tfvars
-        └── iam.live.s3.tfbackend
+example <------------------------------ configuration directory
+├── main.tf                             configuration file(s)
+├── dev
+│   ├── dev.auto.tfvars
+│   └── dev.tfbackend
+└── live
+    ├── blue <------------------------- working directory
+    │   ├── live.blue.auto.tfvars       variables file(s)
+    │   └── live.blue.tfbackend         backend file(s)
+    └── green
+        ├── live.green.auto.tfvars
+        └── live.green.tfbackend
 ```
 
 Typical usage would look like this:
 
 ```
-$ cd ecr/live/eu-central-1
+$ cd dev
 $ ltf init
 $ ltf plan
 $ ltf apply
-$ cd ../eu-west-1
+$ cd ../live/blue
 $ ltf init
 $ ltf plan
-$ ltf apply -target=aws_ecr_repository.this
+$ ltf apply -target=random_id.this
 ```
 
 ## Why choose LTF over other approaches?
@@ -56,17 +47,17 @@ LTF has these benefits:
 
 * LTF is a transparent wrapper, so all Terraform actions and arguments can be used.
 * LTF is released as a single binary, so installation is easy.
-* LTF keeps your configuration DRY, using a simple project structure with no extra files.
-* LTF requires minimal learning to use.
+* LTF keeps your configuration DRY using only the directory structure.
+* LTF requires almost no learning to use.
 * LTF runs Terraform in the current working directory, so there's no build/cache directory to complicate things.
 
 But LTF does not aim to do everything:
 
 * LTF does not create backend resources for you (see Pretf, Terragrunt, Terraspace).
-* LTF does not support generating Terraform configuration using another language (see Pretf, Terraspace).
+* LTF does not generate Terraform configuration using another language (see CDK, Pretf, Terraspace).
+* LTF does not support apply-all/run-all/etc (see Tau, Terragrunt, Terraspace).
 * LTF does not support module/stack/state dependencies (see Tau, Terragrunt, Terraspace).
 * LTF does not support remote configurations (see Pretf, Tau, Terragrunt).
-* LTF does not support run-all or similar (see Tau, Terragrunt, Terraspace).
 
 ## Installation
 
@@ -81,7 +72,7 @@ Example:
 ```
 $ ltf init
 $ ltf plan
-$ ltf apply -target=aws_ecr_repository.this
+$ ltf apply -target=random_id.this
 ```
 
 ## How it works

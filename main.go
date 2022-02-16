@@ -167,7 +167,7 @@ func main() {
 
 	// Keep the data directory inside the current directory
 	// unless the TF_DATA_DIR environment variable is already set.
-	if os.Getenv("TF_DATA_DIR") == "" {
+	if os.Getenv("TF_DATA_DIR") == "" && confDir != cwd {
 		rel, err := filepath.Rel(confDir, cwd)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error resolving relative path %s from %s: %s\n", cwd, confDir, err)
