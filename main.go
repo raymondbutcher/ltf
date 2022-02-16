@@ -132,12 +132,12 @@ func main() {
 	// Get the current working directory.
 	cwd, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting current working directory: %s\n", err)
+		fmt.Fprintf(os.Stderr, "LTF: error getting current working directory: %s\n", err)
 		os.Exit(1)
 	}
 	cwdFiles, err := getFileNames(cwd)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading current working directory %s: %s\n", cwd, err)
+		fmt.Fprintf(os.Stderr, "LTF: error reading current working directory %s: %s\n", cwd, err)
 		os.Exit(1)
 	}
 
@@ -149,7 +149,7 @@ func main() {
 		// This can be the current directory or any parent directory.
 		confDir, err = findConfigDir(cwd)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error finding Terraform configuration files: %s\n", err)
+			fmt.Fprintf(os.Stderr, "LTF: error finding Terraform configuration files: %s\n", err)
 			os.Exit(1)
 		}
 
@@ -158,7 +158,7 @@ func main() {
 		if confDir != cwd {
 			rel, err := filepath.Rel(cwd, confDir)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error resolving relative path %s from %s: %s\n", confDir, cwd, err)
+				fmt.Fprintf(os.Stderr, "LTF: error resolving relative path %s from %s: %s\n", confDir, cwd, err)
 				os.Exit(1)
 			}
 			cmd.Args = append(cmd.Args, fmt.Sprintf("-chdir=%s", rel))
@@ -167,16 +167,16 @@ func main() {
 
 	// Keep the data directory inside the current directory
 	// unless the TF_DATA_DIR environment variable is already set.
-	if os.Getenv("TF_DATA_DIR") == "" && confDir != cwd {
+	if confDir != cwd && os.Getenv("TF_DATA_DIR") == "" {
 		rel, err := filepath.Rel(confDir, cwd)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error resolving relative path %s from %s: %s\n", cwd, confDir, err)
+			fmt.Fprintf(os.Stderr, "LTF: error resolving relative path %s from %s: %s\n", cwd, confDir, err)
 			os.Exit(1)
 		}
 		dataDir := path.Join(rel, ".terraform")
 		env := fmt.Sprintf("TF_DATA_DIR=%s", dataDir)
 		cmd.Env = append(cmd.Env, env)
-		fmt.Fprintf(os.Stderr, "%s\n", env)
+		fmt.Fprintf(os.Stderr, "LTF: %s\n", env)
 	}
 
 	// Look in current directory for tfbackend files to use.
@@ -191,14 +191,14 @@ func main() {
 			abs := path.Join(cwd, name)
 			rel, err := filepath.Rel(confDir, abs)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error resolving relative path %s from %s: %s\n", abs, confDir, err)
+				fmt.Fprintf(os.Stderr, "LTF: error resolving relative path %s from %s: %s\n", abs, confDir, err)
 				os.Exit(1)
 			}
 			argValues = append(argValues, fmt.Sprintf("-backend-config=%s", rel))
 		}
 		env := fmt.Sprintf("TF_CLI_ARGS_init=%s", strings.Join(argValues, " "))
 		cmd.Env = append(cmd.Env, env)
-		fmt.Fprintf(os.Stderr, "%s\n", env)
+		fmt.Fprintf(os.Stderr, "LTF: %s\n", env)
 	}
 
 	// Look in current directory for tfvars files to automatically use.
@@ -215,14 +215,14 @@ func main() {
 				abs := path.Join(cwd, name)
 				rel, err := filepath.Rel(confDir, abs)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error resolving relative path %s from %s: %s\n", abs, confDir, err)
+					fmt.Fprintf(os.Stderr, "LTF: error resolving relative path %s from %s: %s\n", abs, confDir, err)
 					os.Exit(1)
 				}
 				argValues = append(argValues, fmt.Sprintf("-var-file=%s", rel))
 			}
 			env := fmt.Sprintf("%s=%s", envName, strings.Join(argValues, " "))
 			cmd.Env = append(cmd.Env, env)
-			fmt.Fprintf(os.Stderr, "%s\n", env)
+			fmt.Fprintf(os.Stderr, "LTF: %s\n", env)
 		}
 	}
 
@@ -230,7 +230,7 @@ func main() {
 	cmd.Args = append(cmd.Args, os.Args[1:]...)
 
 	// Run the Terraform command.
-	fmt.Fprintln(os.Stderr, strings.Join(cmd.Args, " "))
+	fmt.Fprintf(os.Stderr, "LTF: %s\n", strings.Join(cmd.Args, " "))
 	if err := cmd.Run(); err != nil {
 		if exitErr, isExitError := err.(*exec.ExitError); isExitError {
 			os.Exit(exitErr.ExitCode())
