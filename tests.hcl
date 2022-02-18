@@ -1,29 +1,29 @@
-arrange {
+arrange "standard" {
   files = [
     "dev/dev.auto.tfvars",
     "dev/dev.tfbackend",
     "main.tf"
   ]
 
-  act {
+  act "init" {
     cwd = "dev"
     cmd = "ltf init"
 
-    assert {
+    assert "cmd" {
       cmd = "terraform -chdir=.. init"
     }
   }
 
-  act {
+  act "plan" {
     cwd = "dev"
     cmd = "ltf plan -target=random_id.this"
 
-    assert {
+    assert "cmd" {
       cmd = "terraform -chdir=.. plan -target=random_id.this"
     }
   }
 
-  assert {
+  assert "env" {
     env = {
       TF_DATA_DIR       = "dev/.terraform"
       TF_CLI_ARGS_init  = "-backend-config=dev/dev.tfbackend"

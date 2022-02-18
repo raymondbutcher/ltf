@@ -6,11 +6,11 @@ clean:
 	rm -rf ltf
 
 .PHONY: test
-test:
+test: *.go go.sum
 	go test ./...
 
 .PHONY: test
-testv:
+testv: *.go go.sum
 	go test -v ./...
 
 ltf: *.go go.sum
