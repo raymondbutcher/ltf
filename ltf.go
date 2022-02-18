@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -24,7 +23,7 @@ func findConfigDir(dir string) (string, error) {
 		// Stop if this directory was already checked.
 		// This occurs after reaching the filesystem root.
 		if dir == lastDir {
-			return "", errors.New("checked all parent directories")
+			return "", nil
 		}
 
 		// Get the file names in this directory.
@@ -34,7 +33,7 @@ func findConfigDir(dir string) (string, error) {
 		}
 
 		// Return this directory if it contains configuration files.
-		if hasConfFile(files) {
+		if len(matchFiles(files, "*.tf")) > 0 || len(matchFiles(files, "*.tf.json")) > 0 {
 			return dir, nil
 		}
 
@@ -44,17 +43,7 @@ func findConfigDir(dir string) (string, error) {
 	}
 }
 
-func filterTfbackend(files []string) []string {
-	matches := []string{}
-	for _, name := range files {
-		if matched, _ := path.Match("*.tfbackend", name); matched {
-			matches = append(matches, name)
-		}
-	}
-	return matches
-}
-
-func filterTfvars(files []string) []string {
+func matchTfvarsFiles(files []string) []string {
 	// https://www.terraform.io/language/values/variables#variable-definition-precedence
 
 	matches := []string{}
@@ -74,33 +63,16 @@ func filterTfvars(files []string) []string {
 	}
 
 	// Any *.auto.tfvars or *.auto.tfvars.json files, processed in lexical order of their filenames.
-	files = files[:]
-	sort.Strings(files)
-	for _, name := range files {
-		if matched, _ := path.Match("*.auto.tfvars", name); matched {
-			matches = append(matches, name)
-		}
-		if matched, _ := path.Match("*.auto.tfvars.json", name); matched {
-			matches = append(matches, name)
-		}
-	}
+	autoMatches := append(matchFiles(files, "*.auto.tfvars"), matchFiles(files, "*.auto.tfvars.json")...)
+	sort.Strings(autoMatches)
+	matches = append(matches, autoMatches...)
 
 	return matches
 }
 
-func hasConfFile(files []string) bool {
-	for _, name := range files {
-		if matched, _ := path.Match("*.tf", name); matched {
-			return true
-		}
-		if matched, _ := path.Match("*.tf.json", name); matched {
-			return true
-		}
-	}
-	return false
-}
-
 func terraformCommand(cwd string, args []string, env []string) *exec.Cmd {
+	var err error
+
 	// Start building the Terraform command to run.
 	cmd := exec.Command("terraform")
 	cmd.Env = env
@@ -110,31 +82,33 @@ func terraformCommand(cwd string, args []string, env []string) *exec.Cmd {
 
 	// Determine the Terraform configuration directory to use.
 	// If the -chdir argument was provided then use that.
+	// If no configuration files are found then use the current directory.
 	confDir := getNamedArg(args, "chdir")
 	if confDir == "" {
 		// Find the closest directory with Terraform configuration files.
 		// This can be the current directory or any parent directory.
-		var findErr error
-		confDir, findErr = findConfigDir(cwd)
-		if findErr != nil {
-			fmt.Fprintf(os.Stderr, "LTF: error finding Terraform configuration files: %s\n", findErr)
+		confDir, err = findConfigDir(cwd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "LTF: error finding Terraform configuration files: %s\n", err)
 			os.Exit(1)
 		}
-
-		// Make Terraform change to the configuration directory
-		// by adding the -chdir argument to the Terraform command.
-		if confDir != cwd {
-			rel, err := filepath.Rel(cwd, confDir)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "LTF: error resolving chdir: %s\n", err)
-				os.Exit(1)
-			}
-			cmd.Args = append(cmd.Args, fmt.Sprintf("-chdir=%s", rel))
+		if confDir == "" {
+			confDir = cwd
 		}
 	}
 
-	// Keep the data directory inside the current directory
-	// unless the TF_DATA_DIR environment variable is already set.
+	// Make Terraform change to the configuration directory
+	// by adding the -chdir argument to the Terraform command.
+	if confDir != cwd {
+		rel, err := filepath.Rel(cwd, confDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "LTF: error resolving chdir: %s\n", err)
+			os.Exit(1)
+		}
+		cmd.Args = append(cmd.Args, "-chdir="+rel)
+	}
+
+	// Keep the data directory inside the current directory.
 	if confDir != cwd && getEnv(env, "TF_DATA_DIR") == "" {
 		rel, err := filepath.Rel(confDir, cwd)
 		if err != nil {
@@ -142,7 +116,7 @@ func terraformCommand(cwd string, args []string, env []string) *exec.Cmd {
 			os.Exit(1)
 		}
 		dataDir := path.Join(rel, ".terraform")
-		env := fmt.Sprintf("TF_DATA_DIR=%s", dataDir)
+		env := "TF_DATA_DIR=" + dataDir
 		cmd.Env = append(cmd.Env, env)
 		fmt.Fprintf(os.Stderr, "LTF: %s\n", env)
 	}
@@ -156,7 +130,7 @@ func terraformCommand(cwd string, args []string, env []string) *exec.Cmd {
 
 	// Look in current directory for tfbackend files to use.
 	// TODO: look in parent directories too, stopping at confiDir.
-	backendFiles := filterTfbackend(cwdFiles)
+	backendFiles := matchFiles(cwdFiles, "*.tfbackend")
 	if len(backendFiles) > 0 {
 		argValues := []string{}
 		argValue := getEnv(env, "TF_CLI_ARGS_init")
@@ -170,19 +144,19 @@ func terraformCommand(cwd string, args []string, env []string) *exec.Cmd {
 				fmt.Fprintf(os.Stderr, "LTF: error resolving relative backend path for %s from %s: %s\n", abs, confDir, err)
 				os.Exit(1)
 			}
-			argValues = append(argValues, fmt.Sprintf("-backend-config=%s", rel))
+			argValues = append(argValues, "-backend-config="+rel)
 		}
-		env := fmt.Sprintf("TF_CLI_ARGS_init=%s", strings.Join(argValues, " "))
+		env := "TF_CLI_ARGS_init=" + strings.Join(argValues, " ")
 		cmd.Env = append(cmd.Env, env)
 		fmt.Fprintf(os.Stderr, "LTF: %s\n", env)
 	}
 
 	// Look in current directory for tfvars files to automatically use.
 	// TODO: look in parent directories too, stopping at confiDir.
-	tfvarsFiles := filterTfvars(cwdFiles)
+	tfvarsFiles := matchTfvarsFiles(cwdFiles)
 	if len(tfvarsFiles) > 0 {
 		for _, argName := range []string{"plan", "apply"} {
-			envName := fmt.Sprintf("TF_CLI_ARGS_%s", argName)
+			envName := "TF_CLI_ARGS_" + argName
 			argValues := []string{}
 			argValue := getEnv(env, envName)
 			if argValue != "" {
@@ -195,9 +169,9 @@ func terraformCommand(cwd string, args []string, env []string) *exec.Cmd {
 					fmt.Fprintf(os.Stderr, "LTF: error resolving relative tfvars path for %s from %s: %s\n", abs, confDir, err)
 					os.Exit(1)
 				}
-				argValues = append(argValues, fmt.Sprintf("-var-file=%s", rel))
+				argValues = append(argValues, "-var-file="+rel)
 			}
-			env := fmt.Sprintf("%s=%s", envName, strings.Join(argValues, " "))
+			env := envName + "=" + strings.Join(argValues, " ")
 			cmd.Env = append(cmd.Env, env)
 			fmt.Fprintf(os.Stderr, "LTF: %s\n", env)
 		}

@@ -45,7 +45,8 @@ func TestSuite(t *testing.T) {
 	for _, arrange := range tests.Arranges {
 		for _, act := range arrange.Acts {
 			for _, assert := range append(act.Asserts, arrange.Asserts...) {
-				t.Run(fmt.Sprintf("arrange.%s/act.%s/assert.%s", arrange.Name, act.Name, assert.Name), func(t *testing.T) {
+				name := fmt.Sprintf("arrange.%s/act.%s/assert.%s", arrange.Name, act.Name, assert.Name)
+				t.Run(name, func(t *testing.T) {
 					runTestCase(t, arrange, act, assert)
 				})
 			}
@@ -59,20 +60,16 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 	// Arrange
 
 	tempDir, err := os.MkdirTemp("", "ltf-test-")
-	if err != nil {
-		log.Fatal(err)
-	}
+	is.NoErr(err)
 	defer os.RemoveAll(tempDir)
 
 	for _, fileName := range arrange.Files {
 		filePath := path.Join(tempDir, fileName)
 		fileDir := path.Dir(filePath)
-		if err := os.MkdirAll(fileDir, os.ModePerm); err != nil {
-			log.Fatalf("Error creating dir %s: %s", fileDir, err)
-		}
-		if _, err := os.OpenFile(filePath, os.O_RDONLY|os.O_CREATE, 0666); err != nil {
-			log.Fatalf("Error creating file %s: %s", filePath, err)
-		}
+		err := os.MkdirAll(fileDir, os.ModePerm)
+		is.NoErr(err) // error creating dir
+		_, err = os.OpenFile(filePath, os.O_RDONLY|os.O_CREATE, 0666)
+		is.NoErr(err) // error creating file
 	}
 
 	// Act
@@ -81,7 +78,7 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 	args := strings.Split(act.Cmd, " ")
 	env := []string{}
 	for key, val := range act.Env {
-		env = append(env, fmt.Sprintf("%s=%s", key, val))
+		env = append(env, key+"="+val)
 	}
 	cmd := terraformCommand(cwd, args, env)
 
@@ -96,7 +93,7 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 			t.Run(key, func(t *testing.T) {
 				is := is.New(t)
 				actual := ""
-				prefix := fmt.Sprintf("%s=", key)
+				prefix := key + "="
 				for _, env := range cmd.Env {
 					if strings.HasPrefix(env, prefix) {
 						actual = env[len(prefix):]
@@ -106,12 +103,4 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 			})
 		}
 	}
-}
-
-func TestHasConfFile(t *testing.T) {
-	is := is.New(t)
-
-	is.Equal(hasConfFile([]string{"one", "two", "three"}), false)
-	is.Equal(hasConfFile([]string{"one", "two", "three.tf"}), true)
-	is.Equal(hasConfFile([]string{"one", "two", "three.tf.json"}), true)
 }

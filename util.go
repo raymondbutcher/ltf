@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path"
 	"strings"
 )
 
@@ -35,4 +36,14 @@ func getNamedArg(args []string, name string) string {
 		}
 	}
 	return ""
+}
+
+func matchFiles(files []string, pattern string) []string {
+	matches := []string{}
+	for _, name := range files {
+		if matched, _ := path.Match(pattern, name); matched {
+			matches = append(matches, name)
+		}
+	}
+	return matches
 }
