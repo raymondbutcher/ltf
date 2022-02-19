@@ -8,22 +8,42 @@
 #   export LTF_COMMAND=terraform plan -target=random_id.this
 
 hooks:
-  info:
-    before:
-      - terraform
-    after:
-      - terraform
-    run:
-      - echo 'Hello, this is a hook!'
+  # script:
+  #   before:
+  #     - terraform
+  #   after:
+  #     - terraform
+  #   failed:
+  #     - terraform
+  #   run:
+  #     - $LTF_YAML_DIR/hook.sh
+  #     - source $LTF_YAML_DIR/hook.sh # souce would enable exporting environment vars
+  #   # Provide extra env vars for scripts to use:
+  #   # LTF_DIR: current directory (or just use PWD?)
+  #   # LTF_TERRAFORM_DIR: terraform configuration directory, same as -chdir (must avoid naming clash with above, both are config dirs)
+  #   # LTF_YAML_DIR: ltf configuration directory (where this file lives)
+  # info:
+  #   # before:
+  #   #   - terraform
+  #   # after:
+  #   #   - terraform
+  #   failed:
+  #     - terraform
+  #   run:
+  #     - echo 'Exporting TF_VAR_secrets'
+  #     - export TF_VAR_secrets=hello
   secrets:
     before:
       - terraform apply
       - terraform plan
     run:
       # what if secrets.yml is in a parent directory? how to find it?
-      - if test -f secrets.yml; then echo TF_VAR_secrets=$(cat secrets.yml | base64); fi
-  broken:
-    failed:
-      - terraform
-    run:
-      - echo 'Hello from the error hook'
+      # - if test -f secrets.yml; then echo TF_VAR_secrets=$(cat secrets.yml | base64); fi
+      - echo 'Exporting TF_VAR_secrets'
+      - export TF_VAR_secrets=hello 
+      - env | grep TF
+  # broken:
+  #   failed:
+  #     - terraform
+  #   run:
+  #     - echo 'Hello from the error hook'

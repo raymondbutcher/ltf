@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 
 	"gopkg.in/yaml.v2"
@@ -19,7 +21,16 @@ type Hook struct {
 	Run    []string `yaml:"run"`
 }
 
-func (c *Config) Trigger(when string, cmd *exec.Cmd) {
+const bashScript = `#!/bin/bash
+exec 3>&1
+exec 1>&2
+
+%s
+
+ltf -ltf-env-to-json >&3
+`
+
+func (c *Config) Trigger(when string, cmd *exec.Cmd) error {
 	subcommand, _, _ := parseArgs(cmd.Args)
 	for name, hook := range c.Hooks {
 		hookCmds := []string{}
@@ -42,13 +53,33 @@ func (c *Config) Trigger(when string, cmd *exec.Cmd) {
 		}
 		if matched {
 			fmt.Printf("[LTF] running hook: %s (TODO)\n", name)
+			for _, script := range hook.Run {
+				// TODO: explain how this works.
+				// It is updating the environmet on the command.
+				hookCmd := exec.Command("bash", "-c", fmt.Sprintf(bashScript, script))
+				hookCmd.Env = cmd.Env
+				hookCmd.Stdin = os.Stdin
+				hookCmd.Stderr = os.Stderr
+				envJsonBytes, err := hookCmd.Output()
+				if err != nil {
+					return err
+				}
+				newEnv := []string{}
+				err = json.Unmarshal(envJsonBytes, &newEnv)
+				if err != nil {
+					return err
+				}
+				cmd.Env = newEnv
+				// TODO: it's not passing the env through the commands properly
+			}
 		}
 	}
+	return nil
 }
 
 func loadConfig(cwd string) (*Config, error) {
 
-	content, err := ioutil.ReadFile("example/ltf.yaml")
+	content, err := ioutil.ReadFile("../ltf.yaml")
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -63,6 +64,17 @@ func main() {
 	env := os.Environ()
 	_, helpFlag, _ := parseArgs(args)
 
+	// Print environment variables for hooks.
+	if args[1] == "-ltf-env-to-json" {
+		envJsonBytes, err := json.Marshal(os.Environ())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[LTF] error writing environment to JSON: %s\n", err)
+			os.Exit(1)
+		}
+		fmt.Print(string(envJsonBytes))
+		os.Exit(0)
+	}
+
 	// Load the configuration YAML file.
 	config, err := loadConfig(cwd)
 	if err != nil {
@@ -78,7 +90,11 @@ func main() {
 	}
 
 	// Trigger hooks.
-	config.Trigger("before", cmd)
+	err = config.Trigger("before", cmd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[LTF] error from hook: %s\n", err)
+		os.Exit(1)
+	}
 
 	// Print a help message before Terraform's help message.
 	if helpFlag {
@@ -103,9 +119,13 @@ func main() {
 
 	// Trigger hooks.
 	if exitCode == 0 {
-		config.Trigger("after", cmd)
+		err = config.Trigger("after", cmd)
 	} else {
-		config.Trigger("failed", cmd)
+		err = config.Trigger("failed", cmd)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[LTF] error from hook: %s\n", err)
+		os.Exit(1)
 	}
 
 	os.Exit(exitCode)
