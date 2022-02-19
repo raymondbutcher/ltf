@@ -1,0 +1,29 @@
+# Use this approach to capture exported variables?
+# https://github.com/direnv/direnv/blob/6858d0439d505a77145bf12fd208b57a30578ea7/stdlib.sh#L1272
+# run script contents with bash wrapper, print/write out new env and capture it
+# use the new env when running terraform
+
+# Maybe allow exporting variables to control things,
+# e.g. a hook to change the command:
+#   export LTF_COMMAND=terraform plan -target=random_id.this
+
+hooks:
+  info:
+    before:
+      - terraform
+    after:
+      - terraform
+    run:
+      - echo 'Hello, this is a hook!'
+  secrets:
+    before:
+      - terraform apply
+      - terraform plan
+    run:
+      # what if secrets.yml is in a parent directory? how to find it?
+      - if test -f secrets.yml; then echo TF_VAR_secrets=$(cat secrets.yml | base64); fi
+  broken:
+    failed:
+      - terraform
+    run:
+      - echo 'Hello from the error hook'

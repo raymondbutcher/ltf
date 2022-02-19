@@ -7,30 +7,21 @@ import (
 	"strings"
 )
 
-func command(cwd string, args []string, env []string) (*exec.Cmd, error) {
+func command(cwd string, args []string, env []string, config *Config) (*exec.Cmd, error) {
 	// Builds and returns a command to run.
-	// This also prints messages to stderr and stdout.
 
 	subcommand, helpFlag, versionFlag := parseArgs(args)
 
 	var cmd *exec.Cmd
 	var err error
 
-	if helpFlag {
-		fmt.Println("LTF is a transparent wrapper for Terraform, so usage is no different from")
-		fmt.Println("Terraform, which is detailed below. LTF checks the directory tree for")
-		fmt.Println("configuration files, variables files, and backend files, and then")
-		fmt.Println("alters the Terraform command and environment to use them.")
-		fmt.Println("")
-		cmd = terraformCommand(args)
-	} else if subcommand == "" || subcommand == "fmt" || subcommand == "version" || versionFlag {
+	if helpFlag || versionFlag || subcommand == "" || subcommand == "fmt" || subcommand == "version" {
 		cmd = terraformCommand(args)
 	} else {
 		cmd, err = wrapperCommand(cwd, args, env)
 		if err != nil {
 			return nil, err
 		}
-		fmt.Fprintf(os.Stderr, "LTF: %s\n\n", strings.Join(cmd.Args, " "))
 	}
 
 	return cmd, nil
@@ -65,26 +56,57 @@ func main() {
 	// Get the calling environment.
 	cwd, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "LTF: error getting current working directory: %s\n", err)
+		fmt.Fprintf(os.Stderr, "[LTF] error getting current working directory: %s\n", err)
 		os.Exit(1)
 	}
 	args := os.Args
 	env := os.Environ()
+	_, helpFlag, _ := parseArgs(args)
 
-	// Build the command.
-	cmd, err := command(cwd, args, env)
+	// Load the configuration YAML file.
+	config, err := loadConfig(cwd)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "LTF: %s\n", err)
+		fmt.Fprintf(os.Stderr, "[LTF] error loading hooks: %s\n", err)
 		os.Exit(1)
 	}
 
-	// Run the command.
+	// Build the command.
+	cmd, err := command(cwd, args, env, config)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[LTF] %s\n", err)
+		os.Exit(1)
+	}
+
+	// Trigger hooks.
+	config.Trigger("before", cmd)
+
+	// Print a help message before Terraform's help message.
+	if helpFlag {
+		fmt.Println("LTF is a transparent wrapper for Terraform, so usage is no different from")
+		fmt.Println("Terraform, which is detailed below. LTF checks the directory tree for")
+		fmt.Println("configuration files, variables files, and backend files, and then")
+		fmt.Println("alters the Terraform command and environment to use them.")
+		fmt.Println("")
+	}
+
+	// Run the Terraform command.
+	fmt.Fprintf(os.Stderr, "[LTF] running: %s\n", strings.Join(cmd.Args, " "))
+	exitCode := 0
 	if err := cmd.Run(); err != nil {
 		if exitErr, isExitError := err.(*exec.ExitError); isExitError {
-			os.Exit(exitErr.ExitCode())
+			exitCode = exitErr.ExitCode()
 		} else {
-			fmt.Fprintf(os.Stderr, "Error running Terraform: %s\n", err)
-			os.Exit(1)
+			fmt.Fprintf(os.Stderr, "[LTF] Error running Terraform: %s\n", err)
+			exitCode = 1
 		}
 	}
+
+	// Trigger hooks.
+	if exitCode == 0 {
+		config.Trigger("after", cmd)
+	} else {
+		config.Trigger("failed", cmd)
+	}
+
+	os.Exit(exitCode)
 }
