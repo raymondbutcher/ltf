@@ -1,2 +1,1 @@
-env         = "live"
-byte_length = 16
+byte_length = 32

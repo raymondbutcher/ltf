@@ -18,7 +18,11 @@ func main() {
 	env := os.Environ()
 
 	// Build the Terraform command.
-	cmd := terraformCommand(cwd, args, env)
+	cmd, err := terraformCommand(cwd, args, env)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "LTF: %s\n", err)
+		os.Exit(1)
+	}
 
 	// Run the Terraform command.
 	fmt.Fprintf(os.Stderr, "LTF: %s\n", strings.Join(cmd.Args, " "))
