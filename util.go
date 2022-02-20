@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -36,6 +37,31 @@ func getNamedArg(args []string, name string) string {
 		}
 	}
 	return ""
+}
+
+func getParentDirs(dir string) ([]string, error) {
+	// Returns the specified directory and all of its parent directories.
+
+	var err error
+
+	dirs := []string{}
+
+	for {
+		// Add this directory.
+		dirs = append(dirs, dir)
+
+		// Move to the parent directory.
+		dir, err = filepath.Abs(path.Dir(dir))
+		if err != nil {
+			return nil, err
+		}
+
+		// Stop if this directory was already checked.
+		// This occurs after reaching the filesystem root.
+		if dir == dirs[len(dirs)-1] {
+			return dirs, nil
+		}
+	}
 }
 
 func matchFiles(files []string, pattern string) []string {

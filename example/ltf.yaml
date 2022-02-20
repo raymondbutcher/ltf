@@ -1,49 +1,33 @@
-# Use this approach to capture exported variables?
-# https://github.com/direnv/direnv/blob/6858d0439d505a77145bf12fd208b57a30578ea7/stdlib.sh#L1272
-# run script contents with bash wrapper, print/write out new env and capture it
-# use the new env when running terraform
-
-# Maybe allow exporting variables to control things,
-# e.g. a hook to change the command:
-#   export LTF_COMMAND=terraform plan -target=random_id.this
+# Idea: Provide useful environment variables like LTF_TERRAFORM_CMD, LTF_TERRAFORM_DIR, LTF_YAML_DIR.
+# Idea: Read those environment variables after hooks run, and alter what LTF does accordingly, allowing hooks to alter behaviour more.
+# Idea: Allow hooks to run INSTEAD of the terraform command, e.g. "ltf sops" to run sops to edit them, allowing for custom non-Terraform commands.
+# Problem: What if secrets.yaml is in an intermediate directory? How should a hook find it? Include a bash function library for it?
 
 hooks:
-  # script:
-  #   before:
-  #     - terraform
-  #   after:
-  #     - terraform
-  #   failed:
-  #     - terraform
-  #   run:
-  #     - $LTF_YAML_DIR/hook.sh
-  #     - source $LTF_YAML_DIR/hook.sh # souce would enable exporting environment vars
-  #   # Provide extra env vars for scripts to use:
-  #   # LTF_DIR: current directory (or just use PWD?)
-  #   # LTF_TERRAFORM_DIR: terraform configuration directory, same as -chdir (must avoid naming clash with above, both are config dirs)
-  #   # LTF_YAML_DIR: ltf configuration directory (where this file lives)
-  # info:
-  #   # before:
-  #   #   - terraform
-  #   # after:
-  #   #   - terraform
-  #   failed:
-  #     - terraform
-  #   run:
-  #     - echo 'Exporting TF_VAR_secrets'
-  #     - export TF_VAR_secrets=hello
-  secrets:
+  edit secrets:
+    before:
+      - terraform sops
+    run:
+      - |
+        ltf_find () { echo $1; } # TODO: provide this function?
+        file=$(ltf_find "secrets.yaml")
+        if [[ "${file}" == "" ]]; then
+          echo "Could not find secrets.yaml"
+          exit 1
+        else
+          export "LTF_TERRAFORM_CMD=sops ${file}"
+        fi
+      - 'echo LTF_TERRAFORM_CMD=$LTF_TERRAFORM_CMD' # TODO: use this to alter what LTF will run? or run it directly and use another special env var to stop?
+  offer condolences:
+    failed:
+      - terraform sops
+    run:
+      - echo '      Sorry, this is still a work in progress.'
+  export secrets:
     before:
       - terraform apply
       - terraform plan
     run:
-      # what if secrets.yml is in a parent directory? how to find it?
-      # - if test -f secrets.yml; then echo TF_VAR_secrets=$(cat secrets.yml | base64); fi
-      - echo 'Exporting TF_VAR_secrets'
-      - export TF_VAR_secrets=hello 
-      - env | grep TF
-  # broken:
-  #   failed:
-  #     - terraform
-  #   run:
-  #     - echo 'Hello from the error hook'
+      # TODO: this would use sops, maybe using ltf_find() function
+      - export TF_VAR_secrets=hello
+      - echo '      TF_VAR_secrets=(sensitive value)'

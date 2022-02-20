@@ -2,10 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
 
 	"gopkg.in/yaml.v2"
 )
@@ -21,13 +24,23 @@ type Hook struct {
 	Run    []string `yaml:"run"`
 }
 
-const bashScript = `#!/bin/bash
-exec 3>&1
-exec 1>&2
+const scriptTemplate = `#!/bin/bash
+set -euo pipefail
 
+exec 3>&1 # redirect 3 to stdout
+exec 1>&2 # redirect stdout to sterr
+
+__ltf_env_to_json () {
+  local code=$?
+  # Path to LTF.
+  "%s" -ltf-env-to-json >&3
+  trap - EXIT
+  exit "$code"
+}
+trap __ltf_env_to_json EXIT
+
+# Hook script.
 %s
-
-ltf -ltf-env-to-json >&3
 `
 
 func (c *Config) Trigger(when string, cmd *exec.Cmd) error {
@@ -37,7 +50,7 @@ func (c *Config) Trigger(when string, cmd *exec.Cmd) error {
 		if when == "before" {
 			hookCmds = hook.Before
 		} else if when == "after" {
-			hookCmds = hook.Before
+			hookCmds = hook.After
 		} else if when == "failed" {
 			hookCmds = hook.Failed
 		}
@@ -52,42 +65,107 @@ func (c *Config) Trigger(when string, cmd *exec.Cmd) error {
 			}
 		}
 		if matched {
-			fmt.Printf("[LTF] running hook: %s (TODO)\n", name)
+			fmt.Fprintf(os.Stderr, "[LTF] Running hook: %s\n", name)
 			for _, script := range hook.Run {
-				// TODO: explain how this works.
-				// It is updating the environmet on the command.
-				hookCmd := exec.Command("bash", "-c", fmt.Sprintf(bashScript, script))
-				hookCmd.Env = cmd.Env
-				hookCmd.Stdin = os.Stdin
-				hookCmd.Stderr = os.Stderr
-				envJsonBytes, err := hookCmd.Output()
-				if err != nil {
-					return err
-				}
-				newEnv := []string{}
-				err = json.Unmarshal(envJsonBytes, &newEnv)
+				newEnv, err := runScript(script, cmd.Env)
 				if err != nil {
 					return err
 				}
 				cmd.Env = newEnv
-				// TODO: it's not passing the env through the commands properly
 			}
 		}
 	}
 	return nil
 }
 
+func findConfig(cwd string) (string, error) {
+	// Returns the path to ltf.yaml or ltf.yml in the current or parent directories.
+
+	dirs, err := getParentDirs(cwd)
+	if err != nil {
+		return "", err
+	}
+
+	for _, dir := range dirs {
+		names, err := getFileNames(dir)
+		if err != nil {
+			return "", err
+		}
+
+		for _, name := range names {
+			if name == "ltf.yaml" || name == "ltf.yml" {
+				return path.Join(dir, name), nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
 func loadConfig(cwd string) (*Config, error) {
 
-	content, err := ioutil.ReadFile("../ltf.yaml")
+	file, err := findConfig(cwd)
 	if err != nil {
 		return nil, err
 	}
 
 	config := Config{}
-	if err := yaml.UnmarshalStrict([]byte(content), &config); err != nil {
-		return nil, err
+
+	if file != "" {
+
+		rel, err := filepath.Rel(cwd, file)
+		if err != nil {
+			return nil, err
+		}
+
+		// TODO: include in env for hooks?
+		fmt.Fprintf(os.Stderr, "[LTF] Loading configuration: %s\n", rel)
+
+		content, err := ioutil.ReadFile(rel)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := yaml.UnmarshalStrict([]byte(content), &config); err != nil {
+			return nil, err
+		}
 	}
 
 	return &config, nil
+}
+
+func runScript(script string, env []string) (modifiedEnv []string, err error) {
+	cmd := exec.Command("bash", "-c", fmt.Sprintf(scriptTemplate, os.Args[0], script))
+	cmd.Env = env
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	bytes, err := ioutil.ReadAll(stdout)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return nil, err
+	}
+
+	if len(bytes) == 0 {
+		return nil, errors.New("wrapper script failed to output environment variables")
+	}
+
+	err = json.Unmarshal(bytes, &modifiedEnv)
+	if err != nil {
+		return nil, err
+	}
+
+	return modifiedEnv, nil
 }
