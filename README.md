@@ -22,6 +22,7 @@ example <----------------------------- configuration directory
 │   └── dev.tfbackend
 └── live <---------------------------- intermediate directory
     ├── live.auto.tfvars               variables file(s)
+    ├── live.tfbackend                 backend file(s)
     ├── blue
     │   ├── live.blue.auto.tfvars
     │   └── live.blue.tfbackend
@@ -42,12 +43,6 @@ $ ltf init
 $ ltf plan
 $ ltf apply -target=random_id.this
 ```
-
-LTF leverages a simple projects structure and Terraform's 
-
-This simple, logical project structure could be used with Terraform directly. However, it would require extra command line arguments and environment variables
-
- combined with LTF allows for DRY configuration while retaining full, standard Terraform command line usage. Less is more!
 
 ## Why choose LTF over other approaches?
 
