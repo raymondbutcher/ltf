@@ -80,7 +80,7 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 	for key, val := range act.Env {
 		env = append(env, key+"="+val)
 	}
-	cmd, err := command(cwd, args, env)
+	cmd, err := command(cwd, args, env, &Config{})
 	is.NoErr(err)
 
 	// Assert

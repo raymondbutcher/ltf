@@ -171,7 +171,7 @@ func setDataDir(cmd *exec.Cmd, cwd string, chdir string) error {
 	}
 	env := "TF_DATA_DIR=" + path.Join(rel, ".terraform")
 	cmd.Env = append(cmd.Env, env)
-	fmt.Fprintf(os.Stderr, "LTF: %s\n", env)
+	fmt.Fprintf(os.Stderr, "[LTF] %s\n", env)
 	return nil
 }
 
@@ -233,7 +233,7 @@ func wrapperCommand(cwd string, args []string, env []string) (*exec.Cmd, error) 
 		}
 		env := "TF_CLI_ARGS_init=" + strings.Join(argValues, " ")
 		cmd.Env = append(cmd.Env, env)
-		fmt.Fprintf(os.Stderr, "LTF: %s\n", env)
+		fmt.Fprintf(os.Stderr, "[LTF] %s\n", env)
 	}
 
 	// Use variables files.
@@ -254,7 +254,7 @@ func wrapperCommand(cwd string, args []string, env []string) (*exec.Cmd, error) 
 			}
 			env := envName + "=" + strings.Join(argValues, " ")
 			cmd.Env = append(cmd.Env, env)
-			fmt.Fprintf(os.Stderr, "LTF: %s\n", env)
+			fmt.Fprintf(os.Stderr, "[LTF] %s\n", env)
 		}
 	}
 

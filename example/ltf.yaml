@@ -1,0 +1,51 @@
+hooks:
+  greetings:
+    before:
+      - terraform
+    script: |
+      echo
+      echo "Hello, this is a hook!"
+      echo "The date is $(date -I)"
+      echo
+  set TF_VAR_hook:
+    before:
+      - terraform apply
+      - terraform plan
+    script: export TF_VAR_hook=hello
+  information about hooks:
+    before:
+      - terraform hooks
+    script: |
+      set -euo pipefail
+      echo
+      echo "This hook runs when 'terraform hooks' has been run. Terraform itself"
+      echo "has no 'hooks' subcommand, so this script ends with an error to prevent"
+      echo "Terraform from running and failing with an error message."
+      echo
+      echo "What can hook scripts do?"
+      echo
+      echo "- Run multiple commands on different lines."
+      message='- Set and use variables.'
+      echo "${message}"
+      more_info () {
+        echo "- Define and call functions."
+      }
+      more_info
+      export TF_INPUT=0
+      echo "- Export environment variables to make them available in other hooks"
+      echo "  and Terraform when it runs. For example: export TF_INPUT=${TF_INPUT}"
+      echo "- Run any command available on the system."
+      echo "  For example, here is today's date: $(date -I)"
+      echo
+      echo "How are hook scripts executed?"
+      echo
+      echo "LTF runs hook scripts inside a wrapper script using Bash."
+      echo "After the hook script has finished, the wrapper script exports"
+      echo "the environment and passes it to any subsequent hooks and to"
+      echo "the Terraform command. This lets hooks set Terraform options"
+      echo "and variables, just by exporting environment variables."
+      echo
+      echo "Now it will error on purpose to prevent Terraform from running."
+      echo "A future version of LTF will have a more graceful solution for this."
+      echo
+      exit 1
