@@ -1,6 +1,8 @@
 # Idea: Provide useful environment variables like LTF_TERRAFORM_CMD, LTF_TERRAFORM_DIR, LTF_YAML_DIR.
+# IDEA: Provide useful functions like ltf_find()
 # Idea: Read those environment variables after hooks run, and alter what LTF does accordingly, allowing hooks to alter behaviour more.
 # Idea: Allow hooks to run INSTEAD of the terraform command, e.g. "ltf sops" to run sops to edit them, allowing for custom non-Terraform commands.
+# Idea Better command matching, e.g. `terraform plan|apply`
 # Problem: What if secrets.yaml is in an intermediate directory? How should a hook find it? Include a bash function library for it?
 
 hooks:

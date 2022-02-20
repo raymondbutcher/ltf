@@ -1,5 +1,5 @@
 .PHONY: build
-build: ltf
+build: test ltf
 
 .PHONY: clean
 clean:
