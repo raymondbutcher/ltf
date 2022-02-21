@@ -63,7 +63,25 @@ But LTF does not aim to do everything:
 
 ## Installation
 
-LTF [will be](https://github.com/raymondbutcher/ltf/issues/16) released as a single binary. Download and add it to your `PATH`. Make it executable if needed.
+### Install manually
+
+Download the appropriate binary for your system from the [releases](https://github.com/raymondbutcher/ltf/releases) page, move it to your `PATH`, and make it executable.
+
+### Install using [bin](https://github.com/marcosnils/bin)
+
+[bin](https://github.com/marcosnils/bin) manages binary files downloaded from different sources. Run the following to install the latest version of LTF:
+
+```
+bin install github.com/raymondbutcher/ltf
+```
+
+### Verify installation
+
+Run the following to verify that LTF has been installed:
+
+```
+ltf -help
+```
 
 ## Usage
 
