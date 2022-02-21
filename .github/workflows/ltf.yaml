@@ -1,0 +1,60 @@
+name: LTF
+
+on:
+  pull_request:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  GO_VERSION: 1.17.7
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Lint
+        uses: golangci/golangci-lint-action@v2.5.2
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Test
+        run: go test -v -cover ./...
+  release:
+    if: github.event_name == 'push'
+    name: Release
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Build
+        run: |
+          GOOS=darwin GOARCH=amd64 go build -o ltf-darwin-amd64 -v
+          GOOS=darwin GOARCH=arm64 go build -o ltf-darwin-arm64 -v
+          GOOS=linux GOARCH=amd64 go build -o ltf-linux-amd64 -v
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: |
+            ltf-darwin-amd64
+            ltf-darwin-arm64
+            ltf-linux-amd64
