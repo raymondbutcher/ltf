@@ -208,7 +208,10 @@ func wrapperCommand(cwd string, args []string, env []string) (*exec.Cmd, error) 
 
 	// Set the data directory to the current directory.
 	if chdir != cwd && getEnv(env, "TF_DATA_DIR") == "" {
-		setDataDir(cmd, cwd, chdir)
+		err := setDataDir(cmd, cwd, chdir)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Find files to use.

@@ -58,7 +58,7 @@ But LTF does not aim to do everything:
 
 * [LTF does not create backend resources for you.](https://github.com/raymondbutcher/ltf/issues/11)
 * [LTF does not generate Terraform configuration using another language.](https://github.com/raymondbutcher/ltf/issues/12)
-* [LTF does not support module/stack/state dependencies or run-all commands](https://github.com/raymondbutcher/ltf/issues/13)
+* [LTF does not support module/stack/state dependencies or run-all commands.](https://github.com/raymondbutcher/ltf/issues/13)
 * [LTF does not support remote configurations.](https://github.com/raymondbutcher/ltf/issues/14)
 
 ## Installation
@@ -106,9 +106,9 @@ hooks:
     before: # (optional) run the script before these commands:
       - terraform # the hook will always run
       - terraform $subcommand # the hook will only run before this subcommand
-    after: [] # (optional) run the script after these finish successfully:
-    failed: [] # (optional) run the script after these commands have failed:
-    script: $script # bash script
+    after: [] # (optional) run the script after these commands finish successfully
+    failed: [] # (optional) run the script after these commands have failed
+    script: $script # bash script to run
 ```
 
 ### Example: running commands
