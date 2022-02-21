@@ -56,21 +56,14 @@ LTF has these benefits:
 
 But LTF does not aim to do everything:
 
-* LTF does not create backend resources for you (see Pretf, Terragrunt, Terraspace).
-* LTF does not generate Terraform configuration using another language (see CDK, Pretf, Terraspace).
-* LTF does not support apply-all/run-all/etc (see Tau, Terragrunt, Terraspace).
-* LTF does not support module/stack/state dependencies (see Tau, Terragrunt, Terraspace).
-* LTF does not support remote configurations (see Pretf, Tau, Terragrunt).
+* [LTF does not create backend resources for you.](https://github.com/raymondbutcher/ltf/issues/11)
+* [LTF does not generate Terraform configuration using another language.](https://github.com/raymondbutcher/ltf/issues/12)
+* [LTF does not support module/stack/state dependencies or run-all commands](https://github.com/raymondbutcher/ltf/issues/13)
+* [LTF does not support remote configurations.](https://github.com/raymondbutcher/ltf/issues/14)
 
 ## Installation
 
-> TODO: add releases and link to the releases page here
-
-> TODO: try out https://github.com/marwanhawari/stew and https://github.com/marcosnils/bin and if good, add isntructions here
-
-> TODO: consider creating asdf plugin and adding instructions here
-
-LTF is released as a single binary. Download and add it to your `PATH`. Make it executable if needed.
+LTF [will be](https://github.com/raymondbutcher/ltf/issues/16) released as a single binary. Download and add it to your `PATH`. Make it executable if needed.
 
 ## Usage
 
