@@ -8,8 +8,8 @@ import (
 
 // getEnvValue returns the requested environment variable value
 // from a list of environment variables returned by os.Environ().
-func getEnvValue(env []string, key string) string {
-	prefix := key + "="
+func getEnvValue(env []string, name string) string {
+	prefix := name + "="
 	value := ""
 	for _, item := range env {
 		if strings.HasPrefix(item, prefix) {

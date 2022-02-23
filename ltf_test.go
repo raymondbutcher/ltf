@@ -34,14 +34,14 @@ type ActConfig struct {
 
 type AssertConfig struct {
 	Name     string            `hcl:"name,label"`
-	Env      map[string]string `hcl:"env,optional"`
 	Cmd      string            `hcl:"cmd,optional"`
+	Env      map[string]string `hcl:"env,optional"`
 	ExitCode int               `hcl:"exit,optional"`
 }
 
 func TestSuite(t *testing.T) {
 	var tests TestConfig
-	if err := hclsimple.DecodeFile("wrapper_test.hcl", nil, &tests); err != nil {
+	if err := hclsimple.DecodeFile("ltf_test.hcl", nil, &tests); err != nil {
 		log.Fatalf("Failed to load test suite: %s", err)
 	}
 	for _, arrange := range tests.Arranges {
@@ -78,15 +78,15 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 
 	cwd := path.Join(tempDir, act.Cwd)
 	args := strings.Split(act.Cmd, " ")
-	env := []string{}
+	env := []string{"LTF_TEST_MODE=1"}
 	for key, val := range act.Env {
 		env = append(env, key+"="+val)
 	}
-	// TODO: use ltf, rename wrapper_test to ltf_test, etc.
-	cmd, _, err := command(cwd, args, env, &Settings{})
-	is.NoErr(err)
+	cmd, exitCode := ltf(cwd, args, env)
 
 	// Assert
+
+	is.Equal(exitCode, assert.ExitCode) // ltf exited with unexpected code
 
 	if assert.Cmd != "" {
 		is.Equal(strings.Join(cmd.Args, " "), assert.Cmd) // ltf did not generate the expected command
