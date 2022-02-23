@@ -11,6 +11,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// TODO: rename to settings to avoid naming conflict with Terraform Configuration
+
 type Config struct {
 	Hooks map[string]*Hook `yaml:"hooks"`
 }
@@ -22,6 +24,7 @@ func (c *Config) runHooks(when string, cmd *exec.Cmd) error {
 			if err != nil {
 				return err
 			}
+			// TODO: return error if modifying frozen variables
 			cmd.Env = modifiedEnv
 		}
 	}

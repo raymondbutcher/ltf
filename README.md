@@ -2,7 +2,7 @@
 
 > Status: alpha
 
-LTF is a lightweight, transparent Terraform wrapper. It makes Terraform projects easier to work with, and makes the Terraform command easier to use.
+LTF is a lightweight, transparent Terraform wrapper. It makes Terraform projects easier to work with.
 
 Features:
 
@@ -14,21 +14,21 @@ Features:
 A standard LTF project might look like this:
 
 ```
-example <----------------------------- configuration directory
-├── ltf.yaml                           LTF configuration (optional, for hooks)
-├── main.tf                            configuration file(s)
+ltf.yaml <---------------------------- LTF settings file (optional)
+example <----------------------------- Terraform configuration directory
+├── main.tf                            Terraform configuration file(s)
 ├── dev
 │   ├── dev.auto.tfvars
 │   └── dev.tfbackend
-└── live <---------------------------- intermediate directory
-    ├── live.auto.tfvars               variables file(s)
-    ├── live.tfbackend                 backend file(s)
+└── live <---------------------------- Intermediate directory
+    ├── live.auto.tfvars               Terraform variables file(s)
+    ├── live.tfbackend                 Terraform backend file(s)
     ├── blue
     │   ├── live.blue.auto.tfvars
     │   └── live.blue.tfbackend
-    └── green <----------------------- working directory
-        ├── live.green.auto.tfvars     variables file(s)
-        └── live.green.tfbackend       backend file(s)
+    └── green <----------------------- Working directory
+        ├── live.green.auto.tfvars     Terraform variables file(s)
+        └── live.green.tfbackend       Terraform backend file(s)
 ```
 
 Typical usage would look like this:
@@ -102,12 +102,13 @@ LTF searches the directory tree for a Terraform configuration directory, tfvars 
 When LTF finds no `*.tf` or `*.tf.json` files in the current directory, it does the following:
 
 * Finds the closest parent directory containing `*.tf` or `*.tf.json` files, then adds `-chdir=$dir` to the Terraform command line arguments, to make Terraform use that directory as the configuration directory.
-* Updates the `TF_DATA_DIR` environment variable to make Terraform use the `.terraform` directory inside the current directory, rather than in the configuration directory.
+* Sets the `TF_DATA_DIR` environment variable to make Terraform use the `.terraform` directory inside the current directory, rather than in the configuration directory.
 
-It also does the following:
+It always does the following:
 
-* Finds `*.tfvars` and `*.tfvars.json` files in the current directory and parent directories, stopping at the configuration directory, then updates the `TF_CLI_ARGS_plan` and `TF_CLI_ARGS_apply` environment variables to contain `-var-file=$file` for each file.
-  * Terraform's [precedence rules](https://www.terraform.io/language/values/variables#variable-definition-precedence) are followed when finding files to use, except that files in subdirectories will take precendence over files in parent directories.
+* Finds `*.tfvars` and `*.tfvars.json` files in the current directory and parent directories, stopping at the configuration directory, then sets the `TF_VAR_name` environment variable for each variable it finds.
+  * Terraform's [precedence rules](https://www.terraform.io/language/values/variables#variable-definition-precedence) are followed when finding variables. Variables in subdirectories will take precendence over variables in parent directories.
+  * If any tfvars files exist in the configuration directory, Terraform will use those values instead of the environment variables set by LTF. LTF raises an error if the environment variable does not match the value that Terraform will use. This can be avoided by using variable defaults instead of tfvars files, or by moving the tfvars files into a subdirectory.
 * Finds `*.tfbackend` files in the current directory and parent directories, stopping at the configuration directory, then updates the `TF_CLI_ARGS_init` environment variable to contain `-backend-config=$file` for each file.
 
 ## Hooks

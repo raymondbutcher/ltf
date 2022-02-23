@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -17,10 +18,10 @@ type TestConfig struct {
 }
 
 type ArrangeConfig struct {
-	Name    string         `hcl:"name,label"`
-	Files   []string       `hcl:"files,optional"`
-	Acts    []ActConfig    `hcl:"act,block"`
-	Asserts []AssertConfig `hcl:"assert,block"`
+	Name    string            `hcl:"name,label"`
+	Files   map[string]string `hcl:"files,optional"`
+	Acts    []ActConfig       `hcl:"act,block"`
+	Asserts []AssertConfig    `hcl:"assert,block"`
 }
 
 type ActConfig struct {
@@ -32,14 +33,15 @@ type ActConfig struct {
 }
 
 type AssertConfig struct {
-	Name string            `hcl:"name,label"`
-	Env  map[string]string `hcl:"env,optional"`
-	Cmd  string            `hcl:"cmd,optional"`
+	Name     string            `hcl:"name,label"`
+	Env      map[string]string `hcl:"env,optional"`
+	Cmd      string            `hcl:"cmd,optional"`
+	ExitCode int               `hcl:"exit,optional"`
 }
 
 func TestSuite(t *testing.T) {
 	var tests TestConfig
-	if err := hclsimple.DecodeFile("tests.hcl", nil, &tests); err != nil {
+	if err := hclsimple.DecodeFile("wrapper_test.hcl", nil, &tests); err != nil {
 		log.Fatalf("Failed to load test suite: %s", err)
 	}
 	for _, arrange := range tests.Arranges {
@@ -63,12 +65,12 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 	is.NoErr(err)
 	defer os.RemoveAll(tempDir)
 
-	for _, fileName := range arrange.Files {
+	for fileName, fileContents := range arrange.Files {
 		filePath := path.Join(tempDir, fileName)
 		fileDir := path.Dir(filePath)
 		err := os.MkdirAll(fileDir, os.ModePerm)
 		is.NoErr(err) // error creating dir
-		_, err = os.OpenFile(filePath, os.O_RDONLY|os.O_CREATE, 0666)
+		err = ioutil.WriteFile(filePath, []byte(fileContents), 06666)
 		is.NoErr(err) // error creating file
 	}
 
@@ -80,6 +82,7 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 	for key, val := range act.Env {
 		env = append(env, key+"="+val)
 	}
+	// TODO: use ltf, rename wrapper_test to ltf_test, etc.
 	cmd, err := command(cwd, args, env, &Config{})
 	is.NoErr(err)
 
@@ -90,16 +93,10 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 	}
 
 	if len(assert.Env) > 0 {
-		for key, expected := range assert.Env {
-			t.Run(key, func(t *testing.T) {
+		for name, expected := range assert.Env {
+			t.Run(name, func(t *testing.T) {
 				is := is.New(t)
-				actual := ""
-				prefix := key + "="
-				for _, env := range cmd.Env {
-					if strings.HasPrefix(env, prefix) {
-						actual = env[len(prefix):]
-					}
-				}
+				actual := getEnvValue(cmd.Env, name)
 				is.Equal(actual, expected) // ltf did not set the expected environment variable
 			})
 		}
