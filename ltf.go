@@ -33,7 +33,11 @@ func command(cwd string, args []string, env []string) (cmd *exec.Cmd, frozen map
 	cmd.Stderr = os.Stderr
 
 	// Skip LTF for certain commands and just run Terraform.
-	subcommand, helpFlag, versionFlag := parseArgs(args)
+	args = cleanArgs(args)
+	subcommand, helpFlag, versionFlag, err := parseArgs(args, env)
+	if err != nil {
+		return nil, nil, err
+	}
 	if helpFlag || versionFlag || subcommand == "" || subcommand == "fmt" || subcommand == "version" {
 		cmd.Args = append(cmd.Args, args[1:]...)
 		return cmd, nil, nil
@@ -52,17 +56,16 @@ func command(cwd string, args []string, env []string) (cmd *exec.Cmd, frozen map
 	// Make Terraform change to the configuration directory
 	// using the -chdir argument.
 	if chdir != cwd && getNamedArg(args, "chdir") == "" {
-		rel, err := filepath.Rel(cwd, chdir)
-		if err != nil {
+		if rel, err := filepath.Rel(cwd, chdir); err != nil {
 			return nil, nil, err
+		} else {
+			cmd.Args = append(cmd.Args, "-chdir="+rel)
 		}
-		cmd.Args = append(cmd.Args, "-chdir="+rel)
 	}
 
 	// Set the data directory to the current directory.
 	if chdir != cwd && getEnvValue(env, "TF_DATA_DIR") == "" {
-		err := setDataDir(cmd, cwd, chdir)
-		if err != nil {
+		if err := setDataDir(cmd, cwd, chdir); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -72,42 +75,65 @@ func command(cwd string, args []string, env []string) (cmd *exec.Cmd, frozen map
 	module, _ := tfconfig.LoadModule(chdir)
 	for _, variable := range module.Variables {
 		if variable.Default != nil {
-			env, err := marshalEnvValue(variable.Default)
-			if err != nil {
+			if value, err := marshalEnvValue(variable.Default); err != nil {
 				return nil, nil, fmt.Errorf("reading configuration: %w", err)
-
+			} else {
+				vars[variable.Name] = value
 			}
-			vars[variable.Name] = env
 		}
 	}
 
-	// Parse *.tfvars and *.tfvars.json files
-	// and export TF_VAR_name environment variables.
-	// TODO: also handle TF_CLI_ARGS and -var and -var-file etc
+	// Load variables that environment variables will not able to override
+	// due to Terraform's variables precedence rules.
+	// These will be considered "frozen" values.
+
+	// Load tfvars from the configuration directory.
+	// Terraform will use these values over TF_VAR_name so freeze them.
 	frozen = map[string]string{}
+	if v, err := readVariablesDir(chdir); err != nil {
+		return nil, nil, err
+	} else {
+		for name, value := range v {
+			vars[name] = value
+			frozen[name] = value
+		}
+	}
+
+	// Load variables from CLI arguments.
+	// Terraform will prefer these values over TF_VAR_name so freeze them
+	// so LTF can return an error if something tries to set a different
+	// value using TF_VAR_name.
+	if v, err := readVariablesArgs(args, env); err != nil {
+		return nil, nil, err
+	} else {
+		for name, value := range v {
+			vars[name] = value
+			frozen[name] = value
+		}
+	}
+
+	// Load variables from *.tfvars and *.tfvars.json files.
+	// Use directories in reverse order so variables in deeper directories
+	// overwrite variables in parent directories.
 	for i := len(dirs) - 1; i >= 0; i-- {
 		dir := dirs[i]
-		v, err := readVariablesDir(dir)
-		if err != nil {
-			return nil, nil, err
+		if dir == chdir {
+			// Files in chdir were handled earlier.
+			continue
 		}
-		for name, value := range v {
-			if dir == chdir {
-				// Variables in tfvars files in the Terraform configuration directory
-				// cannot be overridden by environment variables, so keep track of them.
-				frozen[name] = value
-			} else {
-				// If a tfvars file outside of the configuration directory tries to change
-				// a frozen variable, then return an error.
+		if v, err := readVariablesDir(dir); err != nil {
+			return nil, nil, err
+		} else {
+			for name, value := range v {
 				if frozenValue, found := frozen[name]; found && value != frozenValue {
-					return nil, nil, fmt.Errorf("TF_VAR_%s would be ignored because it is defined in a tfvars file in the configuration directory", name)
+					return nil, nil, fmt.Errorf("cannot change frozen variable %s from %s", name, dir)
 				}
+				vars[name] = value
 			}
-			vars[name] = value
 		}
 	}
 
-	// Export parsed variables as environment variables.
+	// Export loaded variables as environment variables.
 	for name, value := range vars {
 		env := "TF_VAR_" + name + "=" + value
 		cmd.Env = append(cmd.Env, env)
@@ -178,8 +204,10 @@ func ltf(cwd string, args []string, env []string) (cmd *exec.Cmd, exitStatus int
 	}
 
 	// Print the LTF help message before Terraform's help message.
-	_, helpFlag, _ := parseArgs(args)
-	if helpFlag {
+	if _, helpFlag, _, err := parseArgs(args, env); err != nil {
+		fmt.Fprintf(os.Stderr, "[LTF] Error parsing arguments: %s\n", err)
+		return nil, 1
+	} else if helpFlag {
 		fmt.Println(helpMessage)
 		fmt.Println("")
 	}

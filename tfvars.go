@@ -37,6 +37,40 @@ func filterVariableFiles(files []string) (matches []string) {
 	return matches
 }
 
+func readVariablesArgs(args []string, env []string) (map[string]string, error) {
+	args, err := getArgsWithEnv(args, env)
+	if err != nil {
+		return nil, err
+	}
+
+	result := map[string]string{}
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "-var=") {
+			s := strings.SplitN(arg, "=", 3)
+			if len(s) != 3 {
+				return nil, fmt.Errorf("invalid argument: %s", arg)
+			}
+			name := s[1]
+			value := s[2]
+			result[name] = value
+		} else if strings.HasPrefix(arg, "-var-file=") {
+			s := strings.SplitN(arg, "=", 2)
+			if len(s) != 2 {
+				return nil, fmt.Errorf("invalid argument: %s", arg)
+			}
+			file := s[1]
+			v, err := readVariablesFile(file)
+			if err != nil {
+				return nil, err
+			}
+			for name, value := range v {
+				result[name] = value
+			}
+		}
+	}
+	return result, nil
+}
+
 func readVariablesFile(filename string) (map[string]string, error) {
 	result := map[string]string{}
 

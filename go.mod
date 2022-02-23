@@ -3,6 +3,7 @@ module github.com/raymondbutcher/ltf
 go 1.17
 
 require (
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/hcl/v2 v2.11.1
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/matryer/is v1.4.0

@@ -17,14 +17,16 @@ type Settings struct {
 
 func (c *Settings) runHooks(when string, cmd *exec.Cmd, frozen map[string]string) error {
 	for _, h := range c.Hooks {
-		if h.match(when, cmd) {
+		if matched, err := h.match(when, cmd); err != nil {
+			return err
+		} else if matched {
 			modifiedEnv, err := h.run(cmd.Env)
 			if err != nil {
 				return err
 			}
 			for name, value := range frozen {
 				if getEnvValue(modifiedEnv, name) != value {
-					return fmt.Errorf("hook %s attempted to change frozen variable %s", h.Name, name)
+					return fmt.Errorf("cannot change frozen variable %s from hook %s", name, h.Name)
 				}
 			}
 			cmd.Env = modifiedEnv

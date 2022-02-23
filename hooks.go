@@ -31,8 +31,12 @@ type Hook struct {
 	Script string   `yaml:"script"`
 }
 
-func (h *Hook) match(when string, cmd *exec.Cmd) bool {
-	subcommand, _, _ := parseArgs(cmd.Args)
+// match reports whether the hook matches the given event and command combination.
+func (h *Hook) match(when string, cmd *exec.Cmd) (bool, error) {
+	subcommand, _, _, err := parseArgs(cmd.Args, cmd.Env)
+	if err != nil {
+		return false, err
+	}
 	hookCmds := []string{}
 	if when == "before" {
 		hookCmds = h.Before
@@ -43,12 +47,12 @@ func (h *Hook) match(when string, cmd *exec.Cmd) bool {
 	}
 	for _, hookCmd := range hookCmds {
 		if hookCmd == "terraform" {
-			return true
+			return true, nil
 		} else if hookCmd == "terraform "+subcommand {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func (h *Hook) run(env []string) (modifiedEnv []string, err error) {
