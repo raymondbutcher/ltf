@@ -20,7 +20,7 @@ LTF also executes hooks defined in the first 'ltf.yaml' file it finds
 in the current directory or parent directories. This can be used to run
 commands or modify the environment before and after Terraform runs.`
 
-func command(cwd string, args []string, env []string, config *Config) (*exec.Cmd, error) {
+func command(cwd string, args []string, env []string, settings *Settings) (*exec.Cmd, error) {
 	// Builds and returns a command to run.
 
 	subcommand, helpFlag, versionFlag := parseArgs(args)
@@ -58,22 +58,22 @@ func ltf(cwd string, args []string, env []string) (cmd *exec.Cmd, exitStatus int
 		return nil, 0
 	}
 
-	// Load the configuration YAML file.
-	config, err := loadConfig(cwd)
+	// Find and load the optional settings file.
+	settings, err := loadSettings(cwd)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[LTF] Error loading LTF configuration: %s\n", err)
+		fmt.Fprintf(os.Stderr, "[LTF] Error loading settings: %s\n", err)
 		return nil, 1
 	}
 
 	// Build the command.
-	cmd, err = command(cwd, args, env, config)
+	cmd, err = command(cwd, args, env, settings)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[LTF] Error building command: %s\n", err)
 		return nil, 1
 	}
 
 	// Run any "before" hooks.
-	err = config.runHooks("before", cmd)
+	err = settings.runHooks("before", cmd)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[LTF] Error from hook: %s\n", err)
 		return nil, 1
@@ -100,9 +100,9 @@ func ltf(cwd string, args []string, env []string) (cmd *exec.Cmd, exitStatus int
 
 	// Run any "after" or "failed" hooks.
 	if exitCode == 0 {
-		err = config.runHooks("after", cmd)
+		err = settings.runHooks("after", cmd)
 	} else {
-		err = config.runHooks("failed", cmd)
+		err = settings.runHooks("failed", cmd)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[LTF] Error from hook: %s\n", err)

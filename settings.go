@@ -11,13 +11,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// TODO: rename to settings to avoid naming conflict with Terraform Configuration
-
-type Config struct {
+type Settings struct {
 	Hooks map[string]*Hook `yaml:"hooks"`
 }
 
-func (c *Config) runHooks(when string, cmd *exec.Cmd) error {
+func (c *Settings) runHooks(when string, cmd *exec.Cmd) error {
 	for _, h := range c.Hooks {
 		if h.match(when, cmd) {
 			modifiedEnv, err := h.run(cmd.Env)
@@ -31,7 +29,7 @@ func (c *Config) runHooks(when string, cmd *exec.Cmd) error {
 	return nil
 }
 
-func findConfig(dir string) (string, error) {
+func findSettingsFile(dir string) (string, error) {
 	// Returns the path to ltf.yaml in the current or parent directories.
 
 	lastDir := ""
@@ -62,14 +60,14 @@ func findConfig(dir string) (string, error) {
 	return "", nil
 }
 
-func loadConfig(cwd string) (*Config, error) {
+func loadSettings(cwd string) (*Settings, error) {
 
-	file, err := findConfig(cwd)
+	file, err := findSettingsFile(cwd)
 	if err != nil {
 		return nil, err
 	}
 
-	config := Config{}
+	settings := Settings{}
 
 	if file != "" {
 
@@ -78,21 +76,21 @@ func loadConfig(cwd string) (*Config, error) {
 			return nil, err
 		}
 
-		fmt.Fprintf(os.Stderr, "[LTF] Loading configuration: %s\n", rel)
+		fmt.Fprintf(os.Stderr, "[LTF] Loading settings: %s\n", rel)
 
 		content, err := ioutil.ReadFile(rel)
 		if err != nil {
 			return nil, err
 		}
 
-		if err := yaml.UnmarshalStrict([]byte(content), &config); err != nil {
+		if err := yaml.UnmarshalStrict([]byte(content), &settings); err != nil {
 			return nil, err
 		}
 
-		for name, hook := range config.Hooks {
+		for name, hook := range settings.Hooks {
 			hook.Name = name
 		}
 	}
 
-	return &config, nil
+	return &settings, nil
 }

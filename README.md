@@ -110,6 +110,7 @@ It always does the following:
   * Terraform's [precedence rules](https://www.terraform.io/language/values/variables#variable-definition-precedence) are followed when finding variables. Variables in subdirectories will take precendence over variables in parent directories.
   * If any tfvars files exist in the configuration directory, Terraform will use those values instead of the environment variables set by LTF. LTF raises an error if the environment variable does not match the value that Terraform will use. This can be avoided by using variable defaults instead of tfvars files, or by moving the tfvars files into a subdirectory.
 * Finds `*.tfbackend` files in the current directory and parent directories, stopping at the configuration directory, then updates the `TF_CLI_ARGS_init` environment variable to contain `-backend-config=$file` for each file.
+* Runs hook scripts before and after Terraform.
 
 ## Hooks
 

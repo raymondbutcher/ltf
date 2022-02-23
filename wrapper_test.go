@@ -83,7 +83,7 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 		env = append(env, key+"="+val)
 	}
 	// TODO: use ltf, rename wrapper_test to ltf_test, etc.
-	cmd, err := command(cwd, args, env, &Config{})
+	cmd, err := command(cwd, args, env, &Settings{})
 	is.NoErr(err)
 
 	// Assert
