@@ -4,34 +4,56 @@
 
 LTF is a lightweight, transparent Terraform wrapper. It makes Terraform projects easier to work with.
 
-Features:
-
-* All standard Terraform command line options can be used.
-* Finds and uses a parent directory as the configuration directory.
-* Finds and uses tfvars and tfbackend files from the current and parent directories.
-* Hooks to run commands before/after Terraform.
-
-A standard LTF project might look like this:
+In standard Terraform projects, the `*.tf` files are typically duplicated in each environment, with only minor differences for the backend configuration. Every environment directory contains `*.tf` files and `*.tfvars` files. It requires some effort to maintain all of these environments and keep them consistent. Changes take longer because they involve more files.
 
 ```
-ltf.yaml <---------------------------- LTF settings file (optional)
-example <----------------------------- Terraform configuration directory
-├── main.tf                            Terraform configuration file(s)
+terraform
+├── dev
+│   ├── dev.auto.tfvars
+│   ├── main.tf
+│   ├── outputs.tf
+│   └── variables.tf
+├── qa
+│   ├── qa.auto.tfvars
+│   ├── main.tf
+│   ├── outputs.tf
+│   └── variables.tf
+└── live
+    ├── blue
+    │   ├── live.blue.auto.tfvars
+    │   ├── main.tf
+    │   ├── outputs.tf
+    │   └── variables.tf
+    └── green
+        ├── live.green.auto.tfvars
+        ├── main.tf
+        ├── outputs.tf
+        └── variables.tf
+```
+
+Using LTF, the `*.tf` files are shared between all environments. Environment directories only contain what is unique about the environment: the `*.tfvars` and `*.tfbackend` files. Maintenance is easier and environments are consistent by default. It takes less time to make changes because fewer files are involved.
+
+```
+ltf
+├── main.tf
+├── outputs.tf
+├── variables.tf
 ├── dev
 │   ├── dev.auto.tfvars
 │   └── dev.tfbackend
-└── live <---------------------------- Intermediate directory
-    ├── live.auto.tfvars               Terraform variables file(s)
-    ├── live.tfbackend                 Terraform backend file(s)
+├── qa
+│   ├── qa.auto.tfvars
+│   └── qa.tfbackend
+└── live
     ├── blue
     │   ├── live.blue.auto.tfvars
     │   └── live.blue.tfbackend
-    └── green <----------------------- Working directory
-        ├── live.green.auto.tfvars     Terraform variables file(s)
-        └── live.green.tfbackend       Terraform backend file(s)
+    └── green
+        ├── live.green.auto.tfvars
+        └── live.green.tfbackend
 ```
 
-Typical usage would look like this:
+Using LTF is very easy. It avoids tedious command line arguments. Change to an environment directory and use `ltf` just like you would normally use `terraform` in a simple, single-directory Terraform project.
 
 ```
 $ cd dev
@@ -44,22 +66,29 @@ $ ltf plan
 $ ltf apply -target=random_id.this
 ```
 
-## Why choose LTF over other approaches?
+## Why use LTF?
 
-LTF has these benefits:
+LTF only does a few things:
 
-* LTF is a transparent wrapper, so all Terraform actions and arguments can be used.
-* LTF is released as a single binary, so installation is easy.
-* LTF keeps your configuration DRY using only the directory structure.
-* LTF requires almost no learning to use.
-* LTF runs Terraform in the current working directory, so there's no build/cache directory to complicate things.
+* It finds and uses a parent directory as the configuration directory.
+* It finds and uses tfvars and tfbackend files from the current and parent directories.
+* It supports hooks to run custom scripts before and after Terraform.
 
-But LTF does not aim to do everything:
+LTF is good because:
 
-* [LTF does not create backend resources for you.](https://github.com/raymondbutcher/ltf/issues/11)
-* [LTF does not generate Terraform configuration using another language.](https://github.com/raymondbutcher/ltf/issues/12)
-* [LTF does not support module/stack/state dependencies or run-all commands.](https://github.com/raymondbutcher/ltf/issues/13)
-* [LTF does not support remote configurations.](https://github.com/raymondbutcher/ltf/issues/14)
+* It avoids tedious command line arguments, so it's quick and easy to use.
+* It is a transparent wrapper, so all Terraform actions and arguments can be used.
+* It is released as a single binary, so installation is easy.
+* It keeps your Terraform configuration DRY using only a simple directory structure.
+* It only does a few things, so there's not much to learn.
+* It runs Terraform in the configuration directory, so there's no extra build/cache directory to complicate things.
+
+LTF is purposefully simple and lightweight, so it doesn't do everything:
+
+* [It does not create backend resources for you.](https://github.com/raymondbutcher/ltf/issues/11)
+* [It does not generate Terraform configuration using another language.](https://github.com/raymondbutcher/ltf/issues/12)
+* [It does not support module/stack/state dependencies or run-all commands.](https://github.com/raymondbutcher/ltf/issues/13)
+* [It does not support remote configurations.](https://github.com/raymondbutcher/ltf/issues/14)
 
 ## Installation
 
