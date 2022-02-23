@@ -15,14 +15,18 @@ type Settings struct {
 	Hooks map[string]*Hook `yaml:"hooks"`
 }
 
-func (c *Settings) runHooks(when string, cmd *exec.Cmd) error {
+func (c *Settings) runHooks(when string, cmd *exec.Cmd, frozen map[string]string) error {
 	for _, h := range c.Hooks {
 		if h.match(when, cmd) {
 			modifiedEnv, err := h.run(cmd.Env)
 			if err != nil {
 				return err
 			}
-			// TODO: return error if modifying frozen variables
+			for name, value := range frozen {
+				if getEnvValue(modifiedEnv, name) != value {
+					return fmt.Errorf("hook %s attempted to change frozen variable %s", h.Name, name)
+				}
+			}
 			cmd.Env = modifiedEnv
 		}
 	}

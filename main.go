@@ -20,29 +20,22 @@ LTF also executes hooks defined in the first 'ltf.yaml' file it finds
 in the current directory or parent directories. This can be used to run
 commands or modify the environment before and after Terraform runs.`
 
-func command(cwd string, args []string, env []string, settings *Settings) (*exec.Cmd, error) {
+func command(cwd string, args []string, env []string, settings *Settings) (*exec.Cmd, map[string]string, error) {
 	// Builds and returns a command to run.
 
 	subcommand, helpFlag, versionFlag := parseArgs(args)
 
-	var cmd *exec.Cmd
-	var err error
-
 	if helpFlag || versionFlag || subcommand == "" || subcommand == "fmt" || subcommand == "version" {
 		// Skip the wrapper and run Terraform directly.
-		cmd = exec.Command("terraform", args[1:]...)
+		cmd := exec.Command("terraform", args[1:]...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Env = os.Environ()
-	} else {
-		cmd, err = wrapperCommand(cwd, args, env)
-		if err != nil {
-			return nil, err
-		}
+		return cmd, nil, nil
 	}
 
-	return cmd, nil
+	return wrapperCommand(cwd, args, env)
 }
 
 func ltf(cwd string, args []string, env []string) (cmd *exec.Cmd, exitStatus int) {
@@ -66,14 +59,14 @@ func ltf(cwd string, args []string, env []string) (cmd *exec.Cmd, exitStatus int
 	}
 
 	// Build the command.
-	cmd, err = command(cwd, args, env, settings)
+	cmd, frozen, err := command(cwd, args, env, settings)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[LTF] Error building command: %s\n", err)
 		return nil, 1
 	}
 
 	// Run any "before" hooks.
-	err = settings.runHooks("before", cmd)
+	err = settings.runHooks("before", cmd, frozen)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[LTF] Error from hook: %s\n", err)
 		return nil, 1
@@ -100,9 +93,9 @@ func ltf(cwd string, args []string, env []string) (cmd *exec.Cmd, exitStatus int
 
 	// Run any "after" or "failed" hooks.
 	if exitCode == 0 {
-		err = settings.runHooks("after", cmd)
+		err = settings.runHooks("after", cmd, frozen)
 	} else {
-		err = settings.runHooks("failed", cmd)
+		err = settings.runHooks("failed", cmd, frozen)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[LTF] Error from hook: %s\n", err)
