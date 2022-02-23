@@ -1,14 +1,71 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/hashicorp/terraform-config-inspect/tfconfig"
+	"github.com/tmccombs/hcl2json/convert"
 )
+
+func filterVariableFiles(files []string) (matches []string) {
+	// Returns variables files in the correct order of precedence.
+	// https://www.terraform.io/language/values/variables#variable-definition-precedence
+
+	sort.Strings(files)
+
+	// 1. The terraform.tfvars file, if present.
+	// 2. The terraform.tfvars.json file, if present.
+	autoFiles := []string{}
+	for _, name := range files {
+		if name == "terraform.tfvars" || name == "terraform.tfvars.json" {
+			matches = append(matches, name)
+		} else if matched, _ := path.Match("*.auto.tfvars", name); matched {
+			autoFiles = append(autoFiles, name)
+		} else if matched, _ := path.Match("*.auto.tfvars.json", name); matched {
+			autoFiles = append(autoFiles, name)
+		}
+	}
+
+	// 3. Any *.auto.tfvars or *.auto.tfvars.json files,
+	//    processed in lexical order of their filenames.
+	matches = append(matches, autoFiles...)
+
+	return matches
+}
+
+func findBackendFiles(dirs []string, chdir string) (backendFiles []string, err error) {
+	// Returns backend files to use in the Terraform command.
+
+	// Start at the highest directory (configuration directory)
+	// and go deeper towards the current directory.
+	// Files in the current directory take precedence
+	// over files in parent directories.
+	for i := len(dirs) - 1; i >= 0; i-- {
+		dir := dirs[i]
+
+		// Get a sorted list of files in this directory.
+		files, err := getFileNames(dir)
+		if err != nil {
+			return nil, err
+		}
+		sort.Strings(files)
+
+		// Add any matching backend files.
+		for _, name := range matchFiles(files, "*.tfbackend") {
+			backendFiles = append(backendFiles, path.Join(dir, name))
+		}
+	}
+
+	return backendFiles, nil
+}
 
 func findDirs(cwd string, args []string) (dirs []string, chdir string, err error) {
 	// Returns directories to use, including the directory to change to.
@@ -116,52 +173,61 @@ func findDirsWithoutChdir(cwd string) ([]string, error) {
 	}
 }
 
-func findFiles(dirs []string, chdir string) (backendFiles []string, varFiles []string, err error) {
-	// Returns variables and backend files to use in the Terraform command.
+func readVariablesFile(filename string) (map[string]string, error) {
+	result := map[string]string{}
 
-	// Start at the highest directory (configuration directory)
-	// and go deeper towards the current directory.
-	// Files in the current directory take precedence
-	// over files in parent directories.
-	for i := len(dirs) - 1; i >= 0; i-- {
-		dir := dirs[i]
+	bytes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
 
-		// Get a sorted list of files in this directory.
-		files, err := getFileNames(dir)
+	var jsonBytes []byte
+
+	if strings.HasSuffix(filename, ".json") {
+		jsonBytes = bytes
+	} else {
+		jsonBytes, err = convert.Bytes(bytes, filename, convert.Options{})
 		if err != nil {
-			return nil, nil, err
-		}
-		sort.Strings(files)
-
-		// Add any matching backend files.
-		for _, name := range matchFiles(files, "*.tfbackend") {
-			backendFiles = append(backendFiles, path.Join(dir, name))
-		}
-
-		// Don't search for variables files in the directory where Terraform
-		// will run because Terraform already uses those files by itself.
-		if dir != chdir {
-			// https://www.terraform.io/language/values/variables#variable-definition-precedence
-			// 1. The terraform.tfvars file, if present.
-			// 2. The terraform.tfvars.json file, if present.
-			autoFiles := []string{}
-			for _, name := range files {
-				if name == "terraform.tfvars" || name == "terraform.tfvars.json" {
-					varFiles = append(varFiles, path.Join(dir, name))
-				} else if matched, _ := path.Match("*.auto.tfvars", name); matched {
-					autoFiles = append(autoFiles, path.Join(dir, name))
-				} else if matched, _ := path.Match("*.auto.tfvars.json", name); matched {
-					autoFiles = append(autoFiles, path.Join(dir, name))
-				}
-			}
-
-			// 3. Any *.auto.tfvars or *.auto.tfvars.json files,
-			//    processed in lexical order of their filenames.
-			varFiles = append(varFiles, autoFiles...)
+			return nil, fmt.Errorf("convert hcl to json: %w", err)
 		}
 	}
 
-	return backendFiles, varFiles, nil
+	v := map[string]interface{}{}
+	if err := json.Unmarshal(jsonBytes, &v); err != nil {
+		return nil, fmt.Errorf("unmarshal json from hcl: %w", err)
+	}
+
+	for name, val := range v {
+		// TODO: strings have unnecessary quotes
+		jsonBytes, err := json.Marshal(val)
+		if err != nil {
+			return nil, fmt.Errorf("marshal variable to json: %w", err)
+		}
+		result[name] = string(jsonBytes)
+	}
+
+	return result, nil
+}
+
+func readVariablesDir(dir string) (map[string]string, error) {
+	result := map[string]string{}
+
+	files, err := getFileNames(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, filename := range filterVariableFiles(files) {
+		vars, err := readVariablesFile(path.Join(dir, filename))
+		if err != nil {
+			return nil, err
+		}
+		for name, value := range vars {
+			result[name] = value
+		}
+	}
+
+	return result, nil
 }
 
 func setDataDir(cmd *exec.Cmd, cwd string, chdir string) error {
@@ -214,51 +280,74 @@ func wrapperCommand(cwd string, args []string, env []string) (*exec.Cmd, error) 
 		}
 	}
 
-	// Find files to use.
-	backendFiles, varFiles, err := findFiles(dirs, chdir)
-	if err != nil {
-		return nil, err
+	// Parse the Terraform config to get variable defaults.
+	vars := map[string]string{}
+	module, _ := tfconfig.LoadModule(chdir)
+	for _, variable := range module.Variables {
+		if variable.Default != nil {
+			// TODO: strings have unnecessary quotes
+			jsonBytes, err := json.Marshal(variable.Default)
+			if err != nil {
+				return nil, fmt.Errorf("marshal variable to json: %w", err)
+			}
+			vars[variable.Name] = string(jsonBytes)
+		}
+	}
+
+	// Parse *.tfvars and *.tfvars.json files
+	// and export TF_VAR_name environment variables.
+	// TODO: also handle TF_CLI_ARGS and -var and -var-file etc
+	frozen := map[string]string{}
+	for i := len(dirs) - 1; i >= 0; i-- {
+		dir := dirs[i]
+		v, err := readVariablesDir(dir)
+		if err != nil {
+			return nil, err
+		}
+		for name, value := range v {
+			if dir == chdir {
+				// Variables in tfvars files in the Terraform configuration directory
+				// cannot be overridden by environment variables, so keep track of them.
+				frozen[name] = value
+			} else {
+				// If a tfvars file outside of the configuration directory tries to change
+				// a frozen variable, then return an error.
+				if frozenValue, found := frozen[name]; found && value != frozenValue {
+					return nil, fmt.Errorf("variable %s found in configuration directory and other directory", name)
+				}
+			}
+			vars[name] = value
+		}
+	}
+
+	// Export parsed variables as environment variables.
+	for name, value := range vars {
+		env := "TF_VAR_" + name + "=" + value
+		cmd.Env = append(cmd.Env, env)
+		fmt.Fprintf(os.Stderr, "[LTF] %s\n", env)
 	}
 
 	// Use backend files.
+	backendFiles, err := findBackendFiles(dirs, chdir)
+	if err != nil {
+		return nil, err
+	}
 	if len(backendFiles) > 0 {
-		argValues := []string{}
-		argValue := getEnv(env, "TF_CLI_ARGS_init")
-		if argValue != "" {
-			argValues = append(argValues, argValue)
-		}
+		initArgs := []string{}
 		for _, file := range backendFiles {
 			rel, err := filepath.Rel(dirs[len(dirs)-1], file)
 			if err != nil {
 				return nil, err
 			}
-			argValues = append(argValues, "-backend-config="+rel)
+			initArgs = append(initArgs, "-backend-config="+rel)
 		}
-		env := "TF_CLI_ARGS_init=" + strings.Join(argValues, " ")
+		original := getEnv(env, "TF_CLI_ARGS_init")
+		if original != "" {
+			initArgs = append(initArgs, original)
+		}
+		env := "TF_CLI_ARGS_init=" + strings.Join(initArgs, " ")
 		cmd.Env = append(cmd.Env, env)
 		fmt.Fprintf(os.Stderr, "[LTF] %s\n", env)
-	}
-
-	// Use variables files.
-	if len(varFiles) > 0 {
-		for _, argName := range []string{"plan", "apply"} {
-			envName := "TF_CLI_ARGS_" + argName
-			argValues := []string{}
-			argValue := getEnv(env, envName)
-			if argValue != "" {
-				argValues = append(argValues, argValue)
-			}
-			for _, file := range varFiles {
-				rel, err := filepath.Rel(chdir, file)
-				if err != nil {
-					return nil, err
-				}
-				argValues = append(argValues, "-var-file="+rel)
-			}
-			env := envName + "=" + strings.Join(argValues, " ")
-			cmd.Env = append(cmd.Env, env)
-			fmt.Fprintf(os.Stderr, "[LTF] %s\n", env)
-		}
 	}
 
 	// Pass all command line arguments to Terraform.

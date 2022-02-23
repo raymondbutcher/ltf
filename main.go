@@ -65,51 +65,42 @@ func terraformCommand(args []string) *exec.Cmd {
 	return cmd
 }
 
-func main() {
-	// Get the calling environment.
-	cwd, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[LTF] Error getting current working directory: %s\n", err)
-		os.Exit(1)
-	}
-	args := os.Args
-	env := os.Environ()
-	_, helpFlag, _ := parseArgs(args)
-
+func ltf(cwd string, args []string, env []string) (cmd *exec.Cmd, exitStatus int) {
 	// Special mode to output environment variables after running a hook script.
 	// It outputs in JSON format to avoid issues with multi-line variables.
 	if len(args) > 1 && args[1] == "-ltf-env-to-json" {
 		envJsonBytes, err := json.Marshal(os.Environ())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[LTF] Error writing environment to JSON: %s\n", err)
-			os.Exit(1)
+			return nil, 1
 		}
 		fmt.Print(string(envJsonBytes))
-		os.Exit(0)
+		return nil, 0
 	}
 
 	// Load the configuration YAML file.
 	config, err := loadConfig(cwd)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[LTF] Error loading LTF configuration: %s\n", err)
-		os.Exit(1)
+		return nil, 1
 	}
 
 	// Build the command.
-	cmd, err := command(cwd, args, env, config)
+	cmd, err = command(cwd, args, env, config)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[LTF] Error building command: %s\n", err)
-		os.Exit(1)
+		return nil, 1
 	}
 
 	// Run any "before" hooks.
 	err = config.runHooks("before", cmd)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[LTF] Error from hook: %s\n", err)
-		os.Exit(1)
+		return nil, 1
 	}
 
 	// Print the LTF help message before Terraform's help message.
+	_, helpFlag, _ := parseArgs(args)
 	if helpFlag {
 		fmt.Println(helpMessage)
 		fmt.Println("")
@@ -135,8 +126,20 @@ func main() {
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[LTF] Error from hook: %s\n", err)
-		os.Exit(1)
+		return nil, 1
 	}
 
-	os.Exit(exitCode)
+	return cmd, exitCode
+}
+
+func main() {
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[LTF] Error getting current working directory: %s\n", err)
+		os.Exit(1)
+	}
+	args := os.Args
+	env := os.Environ()
+	_, exitStatus := ltf(cwd, args, env)
+	os.Exit(exitStatus)
 }
