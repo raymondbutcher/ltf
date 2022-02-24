@@ -2,7 +2,7 @@
 
 > Status: alpha
 
-LTF is a lightweight, transparent Terraform wrapper. It makes Terraform projects easier to work with.
+LTF is a minimal, transparent Terraform wrapper. It makes Terraform projects easier to work with.
 
 In standard Terraform projects, the `*.tf` files are typically duplicated in each environment, with only minor differences for the backend configuration. Every environment directory contains `*.tf` files and `*.tfvars` files. It requires some effort to maintain all of these environments and keep them consistent. Changes take longer because they involve more files.
 
@@ -83,7 +83,7 @@ LTF is good because:
 * It only does a few things, so there's not much to learn.
 * It runs Terraform in the configuration directory, so there's no extra build/cache directory to complicate things.
 
-LTF is purposefully simple and lightweight, so it doesn't do everything:
+LTF is purposefully simple and feature-light, so it doesn't do everything:
 
 * [It does not create backend resources for you.](https://github.com/raymondbutcher/ltf/issues/11)
 * [It does not generate Terraform configuration using another language.](https://github.com/raymondbutcher/ltf/issues/12)
