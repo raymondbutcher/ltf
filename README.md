@@ -104,14 +104,6 @@ Download the appropriate binary for your system from the [releases](https://gith
 bin install github.com/raymondbutcher/ltf
 ```
 
-### Verify installation
-
-Run the following to verify that LTF has been installed:
-
-```
-ltf -help
-```
-
 ## Usage
 
 Run `ltf` instead of `terraform`.
