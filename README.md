@@ -81,14 +81,14 @@ LTF is good because:
 * It is released as a single binary, so installation is easy.
 * It keeps your Terraform configuration DRY using only a simple directory structure.
 * It only does a few things, so there's not much to learn.
-* It runs Terraform in the configuration directory, so there's no extra build/cache directory to complicate things.
+* It runs Terraform in the configuration directory, so there are no temporary files or build/cache directories to complicate things.
 
 LTF is purposefully simple and feature-light, so it doesn't do everything:
 
-* [It does not create backend resources for you.](https://github.com/raymondbutcher/ltf/issues/11)
-* [It does not generate Terraform configuration using another language.](https://github.com/raymondbutcher/ltf/issues/12)
-* [It does not support remote configurations.](https://github.com/raymondbutcher/ltf/issues/14)
-* [It does not support run-all or similar commands.](https://github.com/raymondbutcher/ltf/issues/13)
+* [It does not create backend resources for you.](https://github.com/raymondbutcher/ltf/discussions/21)
+* [It does not generate Terraform configuration using another language.](https://github.com/raymondbutcher/ltf/discussions/22)
+* [It does not support remote configurations.](https://github.com/raymondbutcher/ltf/discussions/24)
+* [It does not support run-all or similar commands.](https://github.com/raymondbutcher/ltf/discussions/26)
 
 ## Installation
 
