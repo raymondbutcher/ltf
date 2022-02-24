@@ -87,8 +87,8 @@ LTF is purposefully simple and feature-light, so it doesn't do everything:
 
 * [It does not create backend resources for you.](https://github.com/raymondbutcher/ltf/issues/11)
 * [It does not generate Terraform configuration using another language.](https://github.com/raymondbutcher/ltf/issues/12)
-* [It does not support module/stack/state dependencies or run-all commands.](https://github.com/raymondbutcher/ltf/issues/13)
 * [It does not support remote configurations.](https://github.com/raymondbutcher/ltf/issues/14)
+* [It does not support run-all or similar commands.](https://github.com/raymondbutcher/ltf/issues/13)
 
 ## Installation
 
