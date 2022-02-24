@@ -4,7 +4,7 @@
 
 LTF is a minimal, transparent Terraform wrapper. It makes Terraform projects easier to work with.
 
-In standard Terraform projects, the `*.tf` files are typically duplicated in each environment, with only minor differences for the backend configuration. Every environment directory contains `*.tf` files and `*.tfvars` files. It requires some effort to maintain all of these environments and keep them consistent. Changes take longer because they involve more files.
+In standard Terraform projects, the `*.tf` files are typically duplicated in each environment, with minor differences for the backend configuration. Every environment directory contains nearly identical `*.tf` files and `*.tfvars` files. It requires some effort to maintain all of these environments and keep them consistent. Changes take longer because they involve more files.
 
 ```
 terraform
@@ -31,7 +31,7 @@ terraform
         └── variables.tf
 ```
 
-Using LTF, the `*.tf` files are shared between all environments. A single `*.tfbackend` file is used to configure the backend for all environments, making use of variables. Environment directories only contain what is unique about the environment: the `*.tfvars` file. Maintenance is easier and environments are consistent by default. It takes less time to make changes because fewer files are involved.
+Using LTF, the `*.tf` files are shared between all environments. A single `*.tfbackend` file is used to configure the backend for all environments, making use of variables. Environment directories only contain what is unique about the environment: the `*.tfvars` file. Maintenance is easier and environments are consistent by default. Changes take less time because they involve fewer files.
 
 ```
 ltf
@@ -75,7 +75,7 @@ LTF only does a few things:
 LTF is good because:
 
 * It avoids tedious command line arguments, so it's quick and easy to use.
-* It is a transparent wrapper, so all Terraform actions and arguments can be used.
+* It is a transparent wrapper, so all standard Terraform commands and arguments can be used.
 * It is released as a single binary, so installation is easy.
 * It keeps your Terraform configuration DRY using only a simple directory structure.
 * It only does a few things, so there's not much to learn.
@@ -104,7 +104,7 @@ bin install github.com/raymondbutcher/ltf
 
 ## Usage
 
-Run `ltf` instead of `terraform`.
+Run `ltf` instead of `terraform`. All standard Terraform commands and arguments can be used.
 
 Example:
 
@@ -114,30 +114,30 @@ $ ltf plan
 $ ltf apply -target=random_id.this
 ```
 
-## How it works
+## How LTF works
 
-LTF searches the directory tree for a Terraform configuration directory, tfvars files, and tfbackend files, and passes those details to Terraform.
+LTF searches the directory tree for a Terraform configuration directory, tfvars files, and tfbackend files, and passes their details to Terraform.
 
 When LTF finds no `*.tf` or `*.tf.json` files in the current directory, it does the following:
 
-* Finds the closest parent directory containing `*.tf` or `*.tf.json` files, then adds `-chdir=$dir` to the Terraform command line arguments, to make Terraform use that directory as the configuration directory.
-* Sets the `TF_DATA_DIR` environment variable to make Terraform use the `.terraform` directory inside the current directory, rather than in the configuration directory.
+* Finds the closest parent directory containing `*.tf` or `*.tf.json` files, then adds `-chdir=$dir` to the Terraform command line arguments, to make Terraform use it as the configuration directory.
+* Sets the `TF_DATA_DIR` environment variable to make Terraform use the `.terraform` directory inside the current directory instead of the configuration directory.
 
 When running `ltf init`, it does the following:
 
 * Finds `*.tfbackend` files in the current directory and parent directories, stopping at the configuration directory, then updates the `TF_CLI_ARGS_init` environment variable to contain `-backend-config=$attribute` for each attribute.
-  * The use of Terraform variables is supported.
+  * The use of Terraform variables in `*.tfbackend` files is supported.
 
 It always does the following:
 
-* Finds `*.tfvars` and `*.tfvars.json` files in the current directory and parent directories, stopping at the configuration directory, then sets the `TF_VAR_name` environment variable for each variable it finds.
-  * Terraform's [precedence rules](https://www.terraform.io/language/values/variables#variable-definition-precedence) are followed when finding variables. Variables in subdirectories will take precendence over variables in parent directories.
-  * If any tfvars files exist in the configuration directory, Terraform will use those values instead of the environment variables set by LTF. LTF raises an error if the environment variable does not match the value that Terraform will use. This can be avoided by using variable defaults instead of tfvars files, or by moving the tfvars files into a subdirectory.
+* Finds `*.tfvars` and `*.tfvars.json` files in the current directory and parent directories, stopping at the configuration directory, then sets the `TF_VAR_name` environment variable for each variable.
+  * Terraform's [precedence rules](https://www.terraform.io/language/values/variables#variable-definition-precedence) are followed when finding variables, with the additional rule that variables in subdirectories take precendence over variables in parent directories.
+  * If any tfvars files exist in the configuration directory, variables from those files take precedence over any environment variables. LTF raises an error if it tries to set an environment variable that would be ignored by Terraform. This can be avoided by using variable defaults instead of tfvars files, or by moving the tfvars files into a subdirectory.
 * Runs hook scripts before and after Terraform.
 
 ## Hooks
 
-LTF also supports hook scripts defined in `ltf.yaml`. It looks for this file in the current directory or any parent directory. Hook scripts are just Bash scripts; they can contain multiple lines, and they can even export environment variables. Environment variables will persist to subsequent hooks and the Terraform command.
+LTF also supports hook scripts defined in `ltf.yaml`. It looks for this file in the current directory or any parent directory. Hook scripts are just Bash scripts; they can contain multiple lines, and they can even export environment variables. Environment variables will persist to subsequent hooks and to the Terraform command.
 
 Hooks can be configured to run `before` specific Terraform commands, and/or `after` they have completed successfully, and/or after they have `failed`.
 
@@ -146,7 +146,7 @@ Hooks can be configured to run `before` specific Terraform commands, and/or `aft
 ```yaml
 hooks:
   $name: # the name of the hook
-    before: # (optional) run the script before these commands:
+    before: # (optional) run the script before these commands
       - terraform # the hook will always run
       - terraform $subcommand # the hook will only run before this subcommand
     after: [] # (optional) run the script after these commands finish successfully
