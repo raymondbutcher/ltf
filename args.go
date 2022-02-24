@@ -4,6 +4,23 @@ import (
 	"strings"
 )
 
+type arguments struct {
+	cli     []string
+	virtual []string
+	chdir   string
+}
+
+func newArguments(args []string, env []string) (arguments, error) {
+	a := arguments{}
+	argsWithEnv, err := getArgsWithEnv(args, env)
+	if err == nil {
+		a.cli = args
+		a.virtual = argsWithEnv
+		a.chdir = getNamedArg(argsWithEnv, "-chdir")
+	}
+	return a, err
+}
+
 // cleanArgs converts `-var value` and `-var-file value` arguments
 // into `-var=value` and `-var-file=value` respectively.
 func cleanArgs(args []string) []string {
