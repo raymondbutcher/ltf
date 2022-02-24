@@ -139,26 +139,30 @@ func command(cwd string, args *arguments, env []string) (cmd *exec.Cmd, frozen m
 	}
 
 	// Use backend files.
-	backendFiles, err := findBackendFiles(dirs, chdir)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(backendFiles) > 0 {
-		initArgs := []string{}
-		for _, file := range backendFiles {
-			rel, err := filepath.Rel(dirs[len(dirs)-1], file)
-			if err != nil {
-				return nil, nil, err
+	if args.subcommand == "init" {
+		backendFiles, err := findBackendFiles(dirs, chdir)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(backendFiles) > 0 {
+			initArgs := []string{}
+			for _, file := range backendFiles {
+				if backendConfig, err := parseBackendFile(file, vars); err != nil {
+					return nil, nil, err
+				} else {
+					for name, value := range backendConfig {
+						initArgs = append(initArgs, "-backend-config="+name+"="+value)
+					}
+				}
 			}
-			initArgs = append(initArgs, "-backend-config="+rel)
+			original := getEnvValue(env, "TF_CLI_ARGS_init")
+			if original != "" {
+				initArgs = append(initArgs, original)
+			}
+			env := "TF_CLI_ARGS_init=" + strings.Join(initArgs, " ")
+			cmd.Env = append(cmd.Env, env)
+			fmt.Fprintf(os.Stderr, "[LTF] %s\n", env)
 		}
-		original := getEnvValue(env, "TF_CLI_ARGS_init")
-		if original != "" {
-			initArgs = append(initArgs, original)
-		}
-		env := "TF_CLI_ARGS_init=" + strings.Join(initArgs, " ")
-		cmd.Env = append(cmd.Env, env)
-		fmt.Fprintf(os.Stderr, "[LTF] %s\n", env)
 	}
 
 	// Pass all command line arguments to Terraform.

@@ -2,12 +2,17 @@ terraform {
   backend "local" {}
 }
 
-variable "env" {
-  type = string
-}
-
 variable "byte_length" {
   type = number
+}
+
+variable "color" {
+  type = string
+  default = ""
+}
+
+variable "env" {
+  type = string
 }
 
 variable "hook" {

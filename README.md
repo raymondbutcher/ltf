@@ -31,26 +31,23 @@ terraform
         └── variables.tf
 ```
 
-Using LTF, the `*.tf` files are shared between all environments. Environment directories only contain what is unique about the environment: the `*.tfvars` and `*.tfbackend` files. Maintenance is easier and environments are consistent by default. It takes less time to make changes because fewer files are involved.
+Using LTF, the `*.tf` files are shared between all environments. A single `*.tfbackend` file is used to configure the backend for all environments, making use of variables. Environment directories only contain what is unique about the environment: the `*.tfvars` file. Maintenance is easier and environments are consistent by default. It takes less time to make changes because fewer files are involved.
 
 ```
 ltf
+├── auto.tfbackend
 ├── main.tf
 ├── outputs.tf
 ├── variables.tf
 ├── dev
-│   ├── dev.auto.tfvars
-│   └── dev.tfbackend
+│   └── dev.auto.tfvars
 ├── qa
-│   ├── qa.auto.tfvars
-│   └── qa.tfbackend
+│   └── qa.auto.tfvars
 └── live
     ├── blue
-    │   ├── live.blue.auto.tfvars
-    │   └── live.blue.tfbackend
+    │   └── live.blue.auto.tfvars
     └── green
-        ├── live.green.auto.tfvars
-        └── live.green.tfbackend
+        └── live.green.auto.tfvars
 ```
 
 Using LTF is very easy. It avoids tedious command line arguments. Change to an environment directory and use `ltf` just like you would normally use `terraform` in a simple, single-directory Terraform project.
@@ -72,6 +69,7 @@ LTF only does a few things:
 
 * It finds and uses a parent directory as the configuration directory.
 * It finds and uses tfvars and tfbackend files from the current and parent directories.
+* It supports variables in tfbackend files.
 * It supports hooks to run custom scripts before and after Terraform.
 
 LTF is good because:
@@ -125,12 +123,16 @@ When LTF finds no `*.tf` or `*.tf.json` files in the current directory, it does 
 * Finds the closest parent directory containing `*.tf` or `*.tf.json` files, then adds `-chdir=$dir` to the Terraform command line arguments, to make Terraform use that directory as the configuration directory.
 * Sets the `TF_DATA_DIR` environment variable to make Terraform use the `.terraform` directory inside the current directory, rather than in the configuration directory.
 
+When running `ltf init`, it does the following:
+
+* Finds `*.tfbackend` files in the current directory and parent directories, stopping at the configuration directory, then updates the `TF_CLI_ARGS_init` environment variable to contain `-backend-config=$attribute` for each attribute.
+  * The use of Terraform variables is supported.
+
 It always does the following:
 
 * Finds `*.tfvars` and `*.tfvars.json` files in the current directory and parent directories, stopping at the configuration directory, then sets the `TF_VAR_name` environment variable for each variable it finds.
   * Terraform's [precedence rules](https://www.terraform.io/language/values/variables#variable-definition-precedence) are followed when finding variables. Variables in subdirectories will take precendence over variables in parent directories.
   * If any tfvars files exist in the configuration directory, Terraform will use those values instead of the environment variables set by LTF. LTF raises an error if the environment variable does not match the value that Terraform will use. This can be avoided by using variable defaults instead of tfvars files, or by moving the tfvars files into a subdirectory.
-* Finds `*.tfbackend` files in the current directory and parent directories, stopping at the configuration directory, then updates the `TF_CLI_ARGS_init` environment variable to contain `-backend-config=$file` for each file.
 * Runs hook scripts before and after Terraform.
 
 ## Hooks
