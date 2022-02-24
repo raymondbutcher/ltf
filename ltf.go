@@ -24,7 +24,7 @@ LTF also executes hooks defined in the first 'ltf.yaml' file it finds
 in the current directory or parent directories. This can be used to run
 commands or modify the environment before and after Terraform runs.`
 
-func command(cwd string, args []string, env []string) (cmd *exec.Cmd, frozen map[string]string, err error) {
+func command(cwd string, args *arguments, env []string) (cmd *exec.Cmd, frozen map[string]string, err error) {
 	// Start building the Terraform command to run.
 	cmd = exec.Command("terraform")
 	cmd.Env = env
@@ -33,13 +33,8 @@ func command(cwd string, args []string, env []string) (cmd *exec.Cmd, frozen map
 	cmd.Stderr = os.Stderr
 
 	// Skip LTF for certain commands and just run Terraform.
-	args = cleanArgs(args)
-	subcommand, helpFlag, versionFlag, err := parseArgs(args, env)
-	if err != nil {
-		return nil, nil, err
-	}
-	if helpFlag || versionFlag || subcommand == "" || subcommand == "fmt" || subcommand == "version" {
-		cmd.Args = append(cmd.Args, args[1:]...)
+	if args.help || args.version || args.subcommand == "" || args.subcommand == "fmt" || args.subcommand == "version" {
+		cmd.Args = append(cmd.Args, args.cli[1:]...)
 		return cmd, nil, nil
 	}
 
@@ -55,7 +50,7 @@ func command(cwd string, args []string, env []string) (cmd *exec.Cmd, frozen map
 
 	// Make Terraform change to the configuration directory
 	// using the -chdir argument.
-	if chdir != cwd && getNamedArg(args, "chdir") == "" {
+	if chdir != cwd && args.chdir == "" {
 		if rel, err := filepath.Rel(cwd, chdir); err != nil {
 			return nil, nil, err
 		} else {
@@ -72,7 +67,10 @@ func command(cwd string, args []string, env []string) (cmd *exec.Cmd, frozen map
 
 	// Parse the Terraform config to get variable defaults.
 	vars := map[string]string{}
-	module, _ := tfconfig.LoadModule(chdir)
+	module, diags := tfconfig.LoadModule(chdir)
+	if err := diags.Err(); err != nil {
+		return nil, nil, err
+	}
 	for _, variable := range module.Variables {
 		if variable.Default != nil {
 			if value, err := marshalEnvValue(variable.Default); err != nil {
@@ -103,7 +101,7 @@ func command(cwd string, args []string, env []string) (cmd *exec.Cmd, frozen map
 	// Terraform will prefer these values over TF_VAR_name so freeze them
 	// so LTF can return an error if something tries to set a different
 	// value using TF_VAR_name.
-	if v, err := readVariablesArgs(args, env); err != nil {
+	if v, err := readVariablesArgs(args.virtual); err != nil {
 		return nil, nil, err
 	} else {
 		for name, value := range v {
@@ -164,15 +162,15 @@ func command(cwd string, args []string, env []string) (cmd *exec.Cmd, frozen map
 	}
 
 	// Pass all command line arguments to Terraform.
-	cmd.Args = append(cmd.Args, args[1:]...)
+	cmd.Args = append(cmd.Args, args.cli[1:]...)
 
 	return cmd, frozen, nil
 }
 
-func ltf(cwd string, args []string, env []string) (cmd *exec.Cmd, exitStatus int) {
+func ltf(cwd string, args *arguments, env []string) (cmd *exec.Cmd, exitStatus int) {
 	// Special mode to output environment variables after running a hook script.
 	// It outputs in JSON format to avoid issues with multi-line variables.
-	if len(args) > 1 && args[1] == "-ltf-env-to-json" {
+	if len(args.cli) > 1 && args.cli[1] == "-ltf-env-to-json" {
 		envJsonBytes, err := json.Marshal(env)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[LTF] Error writing environment to JSON: %s\n", err)
@@ -204,10 +202,7 @@ func ltf(cwd string, args []string, env []string) (cmd *exec.Cmd, exitStatus int
 	}
 
 	// Print the LTF help message before Terraform's help message.
-	if _, helpFlag, _, err := parseArgs(args, env); err != nil {
-		fmt.Fprintf(os.Stderr, "[LTF] Error parsing arguments: %s\n", err)
-		return nil, 1
-	} else if helpFlag {
+	if args.help {
 		fmt.Println(helpMessage)
 		fmt.Println("")
 	}
@@ -215,12 +210,14 @@ func ltf(cwd string, args []string, env []string) (cmd *exec.Cmd, exitStatus int
 	// Run the Terraform command.
 	fmt.Fprintf(os.Stderr, "[LTF] Running: %s\n", strings.Join(cmd.Args, " "))
 	exitCode := 0
-	if getEnvValue(env, "LTF_TEST_MODE") == "" {
+	if getEnvValue(env, "LTF_TEST_MODE") != "" {
+		fmt.Fprintf(os.Stderr, "[LTF] Skipped because LTF_TEST_MODE is set\n")
+	} else {
 		if err := cmd.Run(); err != nil {
 			if exitErr, isExitError := err.(*exec.ExitError); isExitError {
 				exitCode = exitErr.ExitCode()
 			} else {
-				fmt.Fprintf(os.Stderr, "[LTF] Error running Terraform: %s\n", err)
+				fmt.Fprintf(os.Stderr, "[LTF] Error starting Terraform: %s\n", err)
 				exitCode = 1
 			}
 		}

@@ -6,13 +6,12 @@ import (
 	"path/filepath"
 )
 
-func findDirs(cwd string, args []string) (dirs []string, chdir string, err error) {
+func findDirs(cwd string, args *arguments) (dirs []string, chdir string, err error) {
 	// Returns directories to use, including the directory to change to.
 	// Subtle: chdir is sometimes cwd and won't be used
 	// Subtle: dirs always includes chdir (which may be cwd)
 
-	chdir = getNamedArg(args, "chdir")
-	if chdir != "" {
+	if args.chdir != "" {
 		// The -chdir argument was provided.
 		chdir, err = filepath.Abs(chdir)
 		if err != nil {

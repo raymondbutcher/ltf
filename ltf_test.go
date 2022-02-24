@@ -77,8 +77,9 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 	// Act
 
 	cwd := path.Join(tempDir, act.Cwd)
-	args := strings.Split(act.Cmd, " ")
 	env := []string{"LTF_TEST_MODE=1"}
+	args, err := newArguments(strings.Split(act.Cmd, " "), env)
+	is.NoErr(err) // error parsing arguments
 	for key, val := range act.Env {
 		env = append(env, key+"="+val)
 	}

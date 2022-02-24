@@ -11,12 +11,12 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type Settings struct {
-	Hooks map[string]*Hook `yaml:"hooks"`
+type settings struct {
+	Hooks map[string]*hook `yaml:"hooks"`
 }
 
-func (c *Settings) runHooks(when string, cmd *exec.Cmd, frozen map[string]string) error {
-	for _, h := range c.Hooks {
+func (s *settings) runHooks(when string, cmd *exec.Cmd, frozen map[string]string) error {
+	for _, h := range s.Hooks {
 		if matched, err := h.match(when, cmd); err != nil {
 			return err
 		} else if matched {
@@ -66,36 +66,36 @@ func findSettingsFile(dir string) (string, error) {
 	return "", nil
 }
 
-func loadSettings(cwd string) (*Settings, error) {
-
+func loadSettings(cwd string) (*settings, error) {
 	file, err := findSettingsFile(cwd)
 	if err != nil {
 		return nil, err
 	}
 
-	settings := Settings{}
+	settings := settings{}
 
-	if file != "" {
+	if file == "" {
+		return &settings, nil
+	}
 
-		rel, err := filepath.Rel(cwd, file)
-		if err != nil {
-			return nil, err
-		}
+	rel, err := filepath.Rel(cwd, file)
+	if err != nil {
+		return nil, err
+	}
 
-		fmt.Fprintf(os.Stderr, "[LTF] Loading settings: %s\n", rel)
+	fmt.Fprintf(os.Stderr, "[LTF] Loading settings: %s\n", rel)
 
-		content, err := ioutil.ReadFile(rel)
-		if err != nil {
-			return nil, err
-		}
+	content, err := ioutil.ReadFile(rel)
+	if err != nil {
+		return nil, err
+	}
 
-		if err := yaml.UnmarshalStrict([]byte(content), &settings); err != nil {
-			return nil, err
-		}
+	if err := yaml.UnmarshalStrict([]byte(content), &settings); err != nil {
+		return nil, err
+	}
 
-		for name, hook := range settings.Hooks {
-			hook.Name = name
-		}
+	for name, hook := range settings.Hooks {
+		hook.Name = name
 	}
 
 	return &settings, nil

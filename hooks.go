@@ -23,7 +23,7 @@ __ltf_env_to_json () {
 trap __ltf_env_to_json EXIT
 `, os.Args[0])
 
-type Hook struct {
+type hook struct {
 	Name   string
 	Before []string `yaml:"before"`
 	After  []string `yaml:"after"`
@@ -32,11 +32,12 @@ type Hook struct {
 }
 
 // match reports whether the hook matches the given event and command combination.
-func (h *Hook) match(when string, cmd *exec.Cmd) (bool, error) {
-	subcommand, _, _, err := parseArgs(cmd.Args, cmd.Env)
+func (h *hook) match(when string, cmd *exec.Cmd) (bool, error) {
+	args, err := newArguments(cmd.Args, cmd.Env)
 	if err != nil {
 		return false, err
 	}
+
 	hookCmds := []string{}
 	if when == "before" {
 		hookCmds = h.Before
@@ -48,14 +49,14 @@ func (h *Hook) match(when string, cmd *exec.Cmd) (bool, error) {
 	for _, hookCmd := range hookCmds {
 		if hookCmd == "terraform" {
 			return true, nil
-		} else if hookCmd == "terraform "+subcommand {
+		} else if args.subcommand != "" && hookCmd == "terraform "+args.subcommand {
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-func (h *Hook) run(env []string) (modifiedEnv []string, err error) {
+func (h *hook) run(env []string) (modifiedEnv []string, err error) {
 	// Runs the hook script and returns the potentially modified environment variables.
 
 	fmt.Fprintf(os.Stderr, "[LTF] Running hook: %s\n", h.Name)

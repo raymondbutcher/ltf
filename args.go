@@ -1,8 +1,49 @@
 package main
 
 import (
+	"fmt"
 	"strings"
+
+	"github.com/google/shlex"
 )
+
+// arguments contain the raw CLI arguments, plus the "virtual" arguments
+// which take into account the TF_CLI_ARGS and TF_CLI_ARGS_name environment variables,
+// plus some extra useful information.
+type arguments struct {
+	cli        []string
+	virtual    []string
+	chdir      string
+	subcommand string
+	help       bool
+	version    bool
+}
+
+// newArguments populates and returns an arguments struct.
+func newArguments(args []string, env []string) (*arguments, error) {
+	a := arguments{}
+	virtual, err := getVirtualArgs(args, env)
+	if err != nil {
+		return &a, err
+	}
+
+	a.cli = args
+	a.virtual = virtual
+
+	for _, arg := range virtual[1:] {
+		if a.subcommand == "" && len(arg) > 0 && arg[0:1] != "-" {
+			a.subcommand = arg
+		} else if arg == "-help" {
+			a.help = true
+		} else if arg == "-version" {
+			a.version = true
+		} else if strings.HasPrefix(arg, "-chdir=") {
+			a.chdir = arg[7:]
+		}
+	}
+
+	return &a, err
+}
 
 // cleanArgs converts `-var value` and `-var-file value` arguments
 // into `-var=value` and `-var-file=value` respectively.
@@ -20,35 +61,47 @@ func cleanArgs(args []string) []string {
 	return result
 }
 
-func getNamedArg(args []string, name string) string {
-	prefix := "-" + name + "="
+// getVirtualArgs returns the combined arguments from the CLI arguments
+// and the TF_CLI_ARGS and TF_CLI_ARGS_name environment variables.
+func getVirtualArgs(args []string, env []string) ([]string, error) {
+	args = cleanArgs(args)
+
+	result := []string{args[0]}
+
+	subcommand := ""
+	afterSubcommand := []string{}
 	for _, arg := range args[1:] {
-		if strings.HasPrefix(arg, prefix) {
-			return arg[len(prefix):]
+		if subcommand == "" {
+			result = append(result, arg)
+			if arg[0:1] != "-" {
+				subcommand = arg
+			}
+		} else {
+			afterSubcommand = append(afterSubcommand, arg)
 		}
 	}
-	return ""
-}
 
-// parseArgs checks CLI arguments and environment variables
-// containing extra CLI arguments and returns useful details.
-func parseArgs(args []string, env []string) (subcommand string, help bool, version bool, err error) {
-
-	args, err = getArgsWithEnv(args, env)
+	envArgs, err := shlex.Split(getEnvValue(env, "TF_CLI_ARGS"))
 	if err != nil {
-		return "", false, false, err
+		return nil, fmt.Errorf("parsing %s: %w", "TF_CLI_ARGS", err)
 	}
-
-	for _, arg := range args[1:] {
-		if subcommand == "" && len(arg) > 0 && arg[0:1] != "-" {
+	for _, arg := range envArgs {
+		if subcommand == "" && arg[0:1] != "-" {
 			subcommand = arg
-			break
-		} else if arg == "-help" {
-			help = true
-		} else if arg == "-version" {
-			version = true
 		}
+		afterSubcommand = append(afterSubcommand, arg)
 	}
 
-	return subcommand, help, version, nil
+	result = append(result, afterSubcommand...)
+
+	if subcommand != "" {
+		envName := "TF_CLI_ARGS_" + subcommand
+		envArgs, err := shlex.Split(getEnvValue(env, envName))
+		if err != nil {
+			return nil, fmt.Errorf("parsing %s: %w", envName, err)
+		}
+		result = append(result, envArgs...)
+	}
+
+	return result, nil
 }

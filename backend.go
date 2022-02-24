@@ -5,8 +5,8 @@ import (
 	"sort"
 )
 
+// findBackendFiles returns backend files to use in the Terraform command.
 func findBackendFiles(dirs []string, chdir string) (backendFiles []string, err error) {
-	// Returns backend files to use in the Terraform command.
 
 	// Start at the highest directory (configuration directory)
 	// and go deeper towards the current directory.

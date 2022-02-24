@@ -4,55 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"github.com/google/shlex"
 )
 
-// getArgsWithEnv reads the TF_CLI_ARGS and TF_CLI_ARGS_name
-// environment variables and combines them with regular CLI arguments.
-func getArgsWithEnv(args []string, env []string) ([]string, error) {
-	result := []string{args[0]}
-
-	subcommand := ""
-	afterSubcommand := []string{}
-	for _, arg := range args[1:] {
-		if subcommand == "" {
-			result = append(result, arg)
-			if arg[0:1] != "-" {
-				subcommand = arg
-			}
-		} else {
-			afterSubcommand = append(afterSubcommand, arg)
-		}
-	}
-
-	envArgs, err := shlex.Split(getEnvValue(env, "TF_CLI_ARGS"))
-	if err != nil {
-		return nil, fmt.Errorf("parsing %s: %w", "TF_CLI_ARGS", err)
-	}
-	for _, arg := range envArgs {
-		if subcommand == "" && arg[0:1] != "-" {
-			subcommand = arg
-		}
-		afterSubcommand = append(afterSubcommand, arg)
-	}
-
-	result = append(result, afterSubcommand...)
-
-	if subcommand != "" {
-		envName := "TF_CLI_ARGS_" + subcommand
-		envArgs, err := shlex.Split(getEnvValue(env, envName))
-		if err != nil {
-			return nil, fmt.Errorf("parsing %s: %w", envName, err)
-		}
-		result = append(result, envArgs...)
-	}
-
-	return result, nil
-}
-
-// getEnvValue returns the requested environment variable value
-// from a list of environment variables returned by os.Environ().
+// getEnvValue returns the named environment variable value
+// from a list of environment variables in the os.Environ() format.
 func getEnvValue(env []string, name string) string {
 	prefix := name + "="
 	value := ""
@@ -66,7 +21,7 @@ func getEnvValue(env []string, name string) string {
 
 // marshalEnvValue returns returns the JSON encoding of v,
 // unless it is a string in which case it returns it as-is.
-// The result is suitable for use as an environment variable.
+// The result is suitable for use as a TF_VAR_name environment variable.
 func marshalEnvValue(v interface{}) (string, error) {
 	if str, ok := v.(string); ok {
 		return str, nil
