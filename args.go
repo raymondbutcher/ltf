@@ -42,6 +42,11 @@ func newArguments(args []string, env []string) (*arguments, error) {
 		}
 	}
 
+	// Version can be called as a flag (handled above) or a command.
+	if a.subcommand == "version" {
+		a.version = true
+	}
+
 	return &a, err
 }
 

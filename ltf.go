@@ -211,6 +211,10 @@ func ltf(cwd string, args *arguments, env []string) (cmd *exec.Cmd, exitStatus i
 		fmt.Println("")
 	}
 
+	if args.version {
+		fmt.Printf("LTF %s\n\n", getVersion())
+	}
+
 	// Run the Terraform command.
 	fmt.Fprintf(os.Stderr, "[LTF] Running: %s\n", strings.Join(cmd.Args, " "))
 	exitCode := 0
