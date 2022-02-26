@@ -22,7 +22,7 @@ LTF also executes hooks defined in the first 'ltf.yaml' file it finds
 in the current directory or parent directories. This can be used to run
 commands or modify the environment before and after Terraform runs.`
 
-func command(cwd string, args *arguments, env []string) (cmd *exec.Cmd, vars map[string]string, frozen map[string]string, sensitive map[string]bool, err error) {
+func command(cwd string, args *arguments, env []string) (cmd *exec.Cmd, vars map[string]*variable, err error) {
 	// Start building the Terraform command to run.
 	cmd = exec.Command("terraform")
 	cmd.Env = env
@@ -33,24 +33,24 @@ func command(cwd string, args *arguments, env []string) (cmd *exec.Cmd, vars map
 	// Skip LTF for certain commands and just run Terraform.
 	if args.help || args.version || args.subcommand == "" || args.subcommand == "fmt" || args.subcommand == "version" {
 		cmd.Args = append(cmd.Args, args.cli[1:]...)
-		return cmd, nil, nil, nil, nil
+		return cmd, nil, nil
 	}
 
 	// Determine the directories to use.
 	cwd, err = filepath.Abs(cwd)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	}
 	dirs, chdir, err := findDirs(cwd, args)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// Make Terraform change to the configuration directory
 	// using the -chdir argument.
 	if chdir != cwd && args.chdir == "" {
 		if rel, err := filepath.Rel(cwd, chdir); err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, err
 		} else {
 			cmd.Args = append(cmd.Args, "-chdir="+rel)
 		}
@@ -59,28 +59,26 @@ func command(cwd string, args *arguments, env []string) (cmd *exec.Cmd, vars map
 	// Set the data directory to the current directory.
 	if chdir != cwd && getEnvValue(env, "TF_DATA_DIR") == "" {
 		if err := setDataDir(cmd, cwd, chdir); err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, err
 		}
 	}
 
 	// Parse the Terraform config to get variable defaults.
-	vars = map[string]string{}
-	sensitive = map[string]bool{}
+	vars = map[string]*variable{}
 	module, diags := tfconfig.LoadModule(chdir)
 	if err := diags.Err(); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	}
-	for _, variable := range module.Variables {
-		if variable.Default != nil {
-			if value, err := marshalEnvValue(variable.Default); err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("reading configuration: %w", err)
-			} else {
-				vars[variable.Name] = value
+	for _, v := range module.Variables {
+		nv := newVariable(v.Name, "")
+		nv.sensitive = v.Sensitive
+		if v.Default != nil {
+			nv.value, err = marshalEnvValue(v.Default)
+			if err != nil {
+				return nil, nil, fmt.Errorf("reading configuration: %w", err)
 			}
 		}
-		if variable.Sensitive {
-			sensitive[variable.Name] = true
-		}
+		vars[v.Name] = nv
 	}
 
 	// Load variables that environment variables will not able to override
@@ -89,13 +87,18 @@ func command(cwd string, args *arguments, env []string) (cmd *exec.Cmd, vars map
 
 	// Load tfvars from the configuration directory.
 	// Terraform will use these values over TF_VAR_name so freeze them.
-	frozen = map[string]string{}
 	if v, err := readVariablesDir(chdir); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	} else {
 		for name, value := range v {
-			vars[name] = value
-			frozen[name] = value
+			if _, found := vars[name]; found {
+				vars[name].value = value
+				vars[name].frozen = true
+			} else {
+				nv := newVariable(name, value)
+				nv.frozen = true
+				vars[name] = nv
+			}
 		}
 	}
 
@@ -104,11 +107,17 @@ func command(cwd string, args *arguments, env []string) (cmd *exec.Cmd, vars map
 	// so LTF can return an error if something tries to set a different
 	// value using TF_VAR_name.
 	if v, err := readVariablesArgs(args.virtual); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	} else {
 		for name, value := range v {
-			vars[name] = value
-			frozen[name] = value
+			if _, found := vars[name]; found {
+				vars[name].value = value
+				vars[name].frozen = true
+			} else {
+				nv := newVariable(name, value)
+				nv.frozen = true
+				vars[name] = nv
+			}
 		}
 	}
 
@@ -122,20 +131,24 @@ func command(cwd string, args *arguments, env []string) (cmd *exec.Cmd, vars map
 			continue
 		}
 		if v, err := readVariablesDir(dir); err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, err
 		} else {
 			for name, value := range v {
-				if frozenValue, found := frozen[name]; found && value != frozenValue {
-					return nil, nil, nil, nil, fmt.Errorf("cannot change frozen variable %s from %s", name, dir)
+				if v, found := vars[name]; found {
+					if v.frozen {
+						return nil, nil, fmt.Errorf("cannot change frozen variable %s from %s", name, dir)
+					}
+					v.value = value
+				} else {
+					vars[name] = newVariable(name, value)
 				}
-				vars[name] = value
 			}
 		}
 	}
 
 	// Export loaded variables as environment variables.
-	for name, value := range vars {
-		env := "TF_VAR_" + name + "=" + value
+	for name, v := range vars {
+		env := "TF_VAR_" + name + "=" + v.value
 		cmd.Env = append(cmd.Env, env)
 	}
 
@@ -143,13 +156,13 @@ func command(cwd string, args *arguments, env []string) (cmd *exec.Cmd, vars map
 	if args.subcommand == "init" {
 		backendFiles, err := findBackendFiles(dirs, chdir)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, err
 		}
 		if len(backendFiles) > 0 {
 			initArgs := []string{}
 			for _, file := range backendFiles {
 				if backendConfig, err := parseBackendFile(file, vars); err != nil {
-					return nil, nil, nil, nil, err
+					return nil, nil, err
 				} else {
 					for name, value := range backendConfig {
 						initArgs = append(initArgs, "-backend-config="+name+"="+value)
@@ -169,7 +182,7 @@ func command(cwd string, args *arguments, env []string) (cmd *exec.Cmd, vars map
 	// Pass all command line arguments to Terraform.
 	cmd.Args = append(cmd.Args, args.cli[1:]...)
 
-	return cmd, vars, frozen, sensitive, nil
+	return cmd, vars, nil
 }
 
 func ltf(cwd string, args *arguments, env []string) (cmd *exec.Cmd, exitStatus int) {
@@ -193,24 +206,23 @@ func ltf(cwd string, args *arguments, env []string) (cmd *exec.Cmd, exitStatus i
 	}
 
 	// Build the command.
-	cmd, vars, frozen, sensitive, err := command(cwd, args, env)
+	cmd, vars, err := command(cwd, args, env)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s: error building command: %s\n", args.bin, err)
 		return nil, 1
 	}
 
-	// Run any "before" hooks.
-	if err := settings.runHooks("before", cmd, args, frozen); err != nil {
-		fmt.Fprintf(os.Stderr, "%s: error from hook: %s\n", args.bin, err)
-		return nil, 1
+	// Display variables.
+	for _, v := range vars {
+		if v.value != "" {
+			v.print()
+		}
 	}
 
-	// Export loaded variables as environment variables.
-	for name, value := range vars {
-		if _, foundSensitive := sensitive[name]; foundSensitive {
-			value = "(sensitive value)"
-		}
-		fmt.Fprintf(os.Stderr, "+ TF_VAR_%s=%s\n", name, value)
+	// Run any "before" hooks.
+	if err := settings.runHooks("before", cmd, args, vars); err != nil {
+		fmt.Fprintf(os.Stderr, "%s: error from hook: %s\n", args.bin, err)
+		return nil, 1
 	}
 
 	// Special cases to print messages before Terraform runs.
@@ -223,10 +235,10 @@ func ltf(cwd string, args *arguments, env []string) (cmd *exec.Cmd, exitStatus i
 
 	// Run the Terraform command.
 	exitCode := 0
-	if getEnvValue(env, "LTF_TEST_MODE") != "" {
-		fmt.Fprintf(os.Stderr, "+ LTF_TEST_MODE skipped command\n")
+	if v := getEnvValue(env, "LTF_TEST_MODE"); v != "" {
+		fmt.Fprintf(os.Stderr, "# LTF_TEST_MODE=%s skipped %s\n", v, strings.Join(cmd.Args, " "))
 	} else {
-		fmt.Fprintf(os.Stderr, "+ %s\n", strings.Join(cmd.Args, " "))
+		fmt.Fprintf(os.Stderr, "# %s\n", strings.Join(cmd.Args, " "))
 		if err := cmd.Run(); err != nil {
 			if exitErr, isExitError := err.(*exec.ExitError); isExitError {
 				exitCode = exitErr.ExitCode()
@@ -242,7 +254,7 @@ func ltf(cwd string, args *arguments, env []string) (cmd *exec.Cmd, exitStatus i
 	if exitCode != 0 {
 		when = "failed"
 	}
-	if err = settings.runHooks(when, cmd, args, frozen); err != nil {
+	if err = settings.runHooks(when, cmd, args, vars); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: error from hook: %s\n", args.bin, err)
 		return nil, 1
 	}

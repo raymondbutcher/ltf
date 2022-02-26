@@ -1,12 +1,4 @@
 hooks:
-  greetings:
-    before:
-      - terraform
-    script: |
-      echo
-      echo "Hello, this is a hook!"
-      echo "The date is $(date -I)"
-      echo
   set TF_VAR_secret:
     before:
       - terraform apply

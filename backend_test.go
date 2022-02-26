@@ -15,9 +15,19 @@ key    = "${var.stack}/terraform.tfstate"
 region = var.region
 `
 
-var backendVars = map[string]string{
-	"stack":  "vpc",
-	"region": "eu-west-1",
+var backendVars = map[string]*variable{
+	"stack": {
+		name:      "stack",
+		value:     "vpc",
+		frozen:    false,
+		sensitive: false,
+	},
+	"region": {
+		name:      "region",
+		value:     "eu-west-1",
+		frozen:    false,
+		sensitive: false,
+	},
 }
 
 func TestParseBackendFile(t *testing.T) {

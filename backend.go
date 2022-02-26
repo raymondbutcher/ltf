@@ -39,7 +39,7 @@ func findBackendFiles(dirs []string, chdir string) (backendFiles []string, err e
 
 // parseBackendFile parses a *.tfbackend file as HCL into a map of strings.
 // Variables can be used in the same way as *.tf files using the `var` object.
-func parseBackendFile(filename string, vars map[string]string) (map[string]string, error) {
+func parseBackendFile(filename string, vars map[string]*variable) (map[string]string, error) {
 	// Parse the file.
 	p := hclparse.NewParser()
 	file, diags := p.ParseHCLFile(filename)
@@ -71,11 +71,11 @@ func parseBackendFile(filename string, vars map[string]string) (map[string]strin
 
 // varsEvalContext returns an EvalContext with a `var` variable
 // containing all of the variables.
-func varsEvalContext(vars map[string]string) *hcl.EvalContext {
+func varsEvalContext(vars map[string]*variable) *hcl.EvalContext {
 	ctx := hcl.EvalContext{}
 	values := map[string]cty.Value{}
-	for name, val := range vars {
-		values[name] = cty.StringVal(val)
+	for _, v := range vars {
+		values[v.name] = cty.StringVal(v.value)
 	}
 	ctx.Variables = map[string]cty.Value{"var": cty.ObjectVal(values)}
 	return &ctx

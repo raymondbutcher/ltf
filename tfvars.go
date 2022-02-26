@@ -4,12 +4,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path"
 	"sort"
 	"strings"
 
 	"github.com/tmccombs/hcl2json/convert"
 )
+
+type variable struct {
+	name      string
+	value     string
+	sensitive bool
+	frozen    bool
+}
+
+func newVariable(name string, value string) *variable {
+	return &variable{name: name, value: value}
+}
+
+func (v *variable) print() {
+	if v.sensitive {
+		fmt.Fprintf(os.Stderr, "+ TF_VAR_%s=%s\n", v.name, "(sensitive value)")
+	} else {
+		fmt.Fprintf(os.Stderr, "+ TF_VAR_%s=%s\n", v.name, v.value)
+	}
+}
 
 func filterVariableFiles(files []string) (matches []string) {
 	// Returns variables files in the correct order of precedence.

@@ -32,7 +32,7 @@ type hook struct {
 }
 
 // match reports whether the hook matches the given event and command combination.
-func (h *hook) match(when string, args *arguments) (bool, error) {
+func (h *hook) match(when string, args *arguments) bool {
 	hookCmds := []string{}
 	if when == "before" {
 		hookCmds = h.Before
@@ -43,18 +43,17 @@ func (h *hook) match(when string, args *arguments) (bool, error) {
 	}
 	for _, hookCmd := range hookCmds {
 		if hookCmd == "terraform" {
-			return true, nil
+			return true
 		} else if args.subcommand != "" && hookCmd == "terraform "+args.subcommand {
-			return true, nil
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
 
+// run executes the hook script and returns the potentially modified environment variables.
 func (h *hook) run(env []string) (modifiedEnv []string, err error) {
-	// Runs the hook script and returns the potentially modified environment variables.
-
-	fmt.Fprintf(os.Stderr, "+ running hook: %s\n", h.Name)
+	fmt.Fprintf(os.Stderr, "# %s\n", h.Name)
 
 	hookCmd := exec.Command("bash", "-c", scriptPreamble+h.Script)
 	hookCmd.Env = env

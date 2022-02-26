@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -14,18 +15,34 @@ type settings struct {
 	Hooks map[string]*hook `yaml:"hooks"`
 }
 
-func (s *settings) runHooks(when string, cmd *exec.Cmd, args *arguments, frozen map[string]string) error {
+func (s *settings) runHooks(when string, cmd *exec.Cmd, args *arguments, vars map[string]*variable) error {
 	for _, h := range s.Hooks {
-		if matched, err := h.match(when, args); err != nil {
-			return err
-		} else if matched {
+		if h.match(when, args) {
 			modifiedEnv, err := h.run(cmd.Env)
 			if err != nil {
 				return err
 			}
-			for name, value := range frozen {
-				if getEnvValue(modifiedEnv, name) != value {
-					return fmt.Errorf("cannot change frozen variable %s from hook %s", name, h.Name)
+
+			for _, env := range modifiedEnv {
+				s := strings.SplitN(env, "=", 2)
+				if len(s) == 2 {
+					name := s[0]
+					if len(name) > 7 && name[:7] == "TF_VAR_" {
+						name = name[7:]
+						value := s[1]
+						if v, found := vars[name]; found {
+							if value != v.value {
+								if v.frozen {
+									return fmt.Errorf("cannot change frozen variable %s from hook %s", name, h.Name)
+								}
+								v.print()
+							}
+						} else {
+							v = newVariable(name, value)
+							vars[name] = v
+							v.print()
+						}
+					}
 				}
 			}
 			cmd.Env = modifiedEnv
