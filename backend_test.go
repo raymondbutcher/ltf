@@ -16,18 +16,8 @@ region = var.region
 `
 
 var backendVars = map[string]*variable{
-	"stack": {
-		name:      "stack",
-		value:     "vpc",
-		frozen:    false,
-		sensitive: false,
-	},
-	"region": {
-		name:      "region",
-		value:     "eu-west-1",
-		frozen:    false,
-		sensitive: false,
-	},
+	"stack":  {name: "stack", value: "vpc"},
+	"region": {name: "region", value: "eu-west-1"},
 }
 
 func TestParseBackendFile(t *testing.T) {

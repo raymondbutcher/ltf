@@ -79,9 +79,9 @@ func getVirtualArgs(args []string, env []string) ([]string, error) {
 	args = cleanArgs(args)
 
 	result := []string{args[0]}
-
 	subcommand := ""
-	afterSubcommand := []string{}
+	afterEnvArgs := []string{}
+
 	for _, arg := range args[1:] {
 		if subcommand == "" {
 			result = append(result, arg)
@@ -89,31 +89,33 @@ func getVirtualArgs(args []string, env []string) ([]string, error) {
 				subcommand = arg
 			}
 		} else {
-			afterSubcommand = append(afterSubcommand, arg)
+			afterEnvArgs = append(afterEnvArgs, arg)
 		}
 	}
 
-	envArgs, err := shlex.Split(getEnvValue(env, "TF_CLI_ARGS"))
-	if err != nil {
+	if envArgs, err := shlex.Split(getEnvValue(env, "TF_CLI_ARGS")); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", "TF_CLI_ARGS", err)
-	}
-	for _, arg := range envArgs {
-		if subcommand == "" && arg[0:1] != "-" {
-			subcommand = arg
+	} else {
+		envArgs = cleanArgs(envArgs)
+		for _, arg := range envArgs {
+			if subcommand == "" && arg[0:1] != "-" {
+				subcommand = arg
+			}
+			result = append(result, arg)
 		}
-		afterSubcommand = append(afterSubcommand, arg)
 	}
-
-	result = append(result, afterSubcommand...)
 
 	if subcommand != "" {
 		envName := "TF_CLI_ARGS_" + subcommand
-		envArgs, err := shlex.Split(getEnvValue(env, envName))
-		if err != nil {
+		if envArgs, err := shlex.Split(getEnvValue(env, envName)); err != nil {
 			return nil, fmt.Errorf("parsing %s: %w", envName, err)
+		} else {
+			envArgs = cleanArgs(envArgs)
+			result = append(result, envArgs...)
 		}
-		result = append(result, envArgs...)
 	}
+
+	result = append(result, afterEnvArgs...)
 
 	return result, nil
 }
