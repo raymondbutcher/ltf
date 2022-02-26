@@ -15,7 +15,7 @@ type settings struct {
 	Hooks map[string]*hook `yaml:"hooks"`
 }
 
-func (s *settings) runHooks(when string, cmd *exec.Cmd, args *arguments, vars map[string]*variable) error {
+func (s *settings) runHooks(when string, cmd *exec.Cmd, args *arguments, vars variables) error {
 	for _, h := range s.Hooks {
 		if h.match(when, args) {
 			modifiedEnv, err := h.run(cmd.Env)

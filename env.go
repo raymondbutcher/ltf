@@ -39,9 +39,9 @@ func marshalEnvValue(v interface{}) (string, error) {
 // Returns an updated list of environment variables.
 func setEnvValue(env []string, name string, value string) (modifiedEnv []string) {
 	prefix := name + "="
-	for _, item := range env {
-		if !strings.HasPrefix(item, prefix) {
-			modifiedEnv = append(modifiedEnv, item)
+	for _, v := range env {
+		if !strings.HasPrefix(v, prefix) {
+			modifiedEnv = append(modifiedEnv, v)
 		}
 	}
 	modifiedEnv = append(modifiedEnv, name+"="+value)

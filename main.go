@@ -17,6 +17,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s: error parsing cli arguments: %s\n", os.Args[0], err)
 		os.Exit(1)
 	}
-	_, exitStatus := ltf(cwd, args, env)
+	_, exitStatus, err := ltf(cwd, args, env)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %s\n", args.bin, err)
+	}
 	os.Exit(exitStatus)
 }

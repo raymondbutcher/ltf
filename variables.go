@@ -13,6 +13,8 @@ import (
 	"github.com/tmccombs/hcl2json/convert"
 )
 
+type variables map[string]*variable
+
 type variable struct {
 	name      string
 	value     string
@@ -58,8 +60,8 @@ func filterVariableFiles(files []string) (matches []string) {
 	return matches
 }
 
-func loadVariables(args *arguments, dirs []string, chdir string) (vars map[string]*variable, err error) {
-	vars = map[string]*variable{}
+func loadVariables(args *arguments, dirs []string, chdir string) (vars variables, err error) {
+	vars = variables{}
 
 	// Parse the Terraform config to get variable defaults.
 	module, diags := tfconfig.LoadModule(chdir)

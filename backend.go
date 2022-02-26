@@ -39,7 +39,7 @@ func findBackendFilenames(dirs []string, chdir string) (filenames []string, err 
 
 // loadBackendConfiguration reads *.tfbackend files from the specified directories,
 // renders them with Terraform variables, and returns a backend configuration.
-func loadBackendConfiguration(dirs []string, chdir string, vars map[string]*variable) (backend map[string]string, err error) {
+func loadBackendConfiguration(dirs []string, chdir string, vars variables) (backend map[string]string, err error) {
 
 	filenames, err := findBackendFilenames(dirs, chdir)
 	if err != nil {
@@ -67,7 +67,7 @@ func loadBackendConfiguration(dirs []string, chdir string, vars map[string]*vari
 
 // parseBackendFile parses a *.tfbackend file as HCL into a map of strings.
 // Variables can be used in the same way as *.tf files using the `var` object.
-func parseBackendFile(filename string, vars map[string]*variable) (map[string]string, error) {
+func parseBackendFile(filename string, vars variables) (map[string]string, error) {
 	// Parse the file.
 	p := hclparse.NewParser()
 	file, diags := p.ParseHCLFile(filename)
@@ -99,7 +99,7 @@ func parseBackendFile(filename string, vars map[string]*variable) (map[string]st
 
 // varsEvalContext returns an EvalContext with a `var` variable
 // containing all of the variables.
-func varsEvalContext(vars map[string]*variable) *hcl.EvalContext {
+func varsEvalContext(vars variables) *hcl.EvalContext {
 	ctx := hcl.EvalContext{}
 	values := map[string]cty.Value{}
 	for _, v := range vars {

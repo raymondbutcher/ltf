@@ -15,7 +15,7 @@ key    = "${var.stack}/terraform.tfstate"
 region = var.region
 `
 
-var backendVars = map[string]*variable{
+var backendVars = variables{
 	"stack":  {name: "stack", value: "vpc"},
 	"region": {name: "region", value: "eu-west-1"},
 }
