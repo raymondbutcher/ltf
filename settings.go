@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
@@ -15,9 +14,9 @@ type settings struct {
 	Hooks map[string]*hook `yaml:"hooks"`
 }
 
-func (s *settings) runHooks(when string, cmd *exec.Cmd, frozen map[string]string) error {
+func (s *settings) runHooks(when string, cmd *exec.Cmd, args *arguments, frozen map[string]string) error {
 	for _, h := range s.Hooks {
-		if matched, err := h.match(when, cmd); err != nil {
+		if matched, err := h.match(when, args); err != nil {
 			return err
 		} else if matched {
 			modifiedEnv, err := h.run(cmd.Env)
@@ -82,8 +81,6 @@ func loadSettings(cwd string) (*settings, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Fprintf(os.Stderr, "[LTF] Loading settings: %s\n", rel)
 
 	content, err := ioutil.ReadFile(rel)
 	if err != nil {

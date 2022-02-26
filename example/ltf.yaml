@@ -7,11 +7,11 @@ hooks:
       echo "Hello, this is a hook!"
       echo "The date is $(date -I)"
       echo
-  set TF_VAR_hook:
+  set TF_VAR_secret:
     before:
       - terraform apply
       - terraform plan
-    script: export TF_VAR_hook=hello
+    script: export TF_VAR_secret=hello
   information about hooks:
     before:
       - terraform hooks

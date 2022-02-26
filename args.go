@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -11,23 +12,29 @@ import (
 // which take into account the TF_CLI_ARGS and TF_CLI_ARGS_name environment variables,
 // plus some extra useful information.
 type arguments struct {
-	cli        []string
-	virtual    []string
+	bin        string
 	chdir      string
-	subcommand string
+	cli        []string
 	help       bool
+	subcommand string
 	version    bool
+	virtual    []string
 }
 
 // newArguments populates and returns an arguments struct.
 func newArguments(args []string, env []string) (*arguments, error) {
+	if len(args) == 0 {
+		return nil, errors.New("not enough arguments")
+	}
+
 	a := arguments{}
+	a.bin = args[0]
+	a.cli = args
+
 	virtual, err := getVirtualArgs(args, env)
 	if err != nil {
 		return &a, err
 	}
-
-	a.cli = args
 	a.virtual = virtual
 
 	for _, arg := range virtual[1:] {

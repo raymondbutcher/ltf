@@ -15,7 +15,7 @@ exec 1>&2 # redirect stdout to sterr
 __ltf_env_to_json () {
   local code=$?
   if [ $code -eq 0 ]; then
-	"%s" -ltf-env-to-json >&3
+	"%s" -env-to-json >&3
   fi
   trap - EXIT
   exit $code
@@ -32,12 +32,7 @@ type hook struct {
 }
 
 // match reports whether the hook matches the given event and command combination.
-func (h *hook) match(when string, cmd *exec.Cmd) (bool, error) {
-	args, err := newArguments(cmd.Args, cmd.Env)
-	if err != nil {
-		return false, err
-	}
-
+func (h *hook) match(when string, args *arguments) (bool, error) {
 	hookCmds := []string{}
 	if when == "before" {
 		hookCmds = h.Before
@@ -59,7 +54,7 @@ func (h *hook) match(when string, cmd *exec.Cmd) (bool, error) {
 func (h *hook) run(env []string) (modifiedEnv []string, err error) {
 	// Runs the hook script and returns the potentially modified environment variables.
 
-	fmt.Fprintf(os.Stderr, "[LTF] Running hook: %s\n", h.Name)
+	fmt.Fprintf(os.Stderr, "+ running hook: %s\n", h.Name)
 
 	hookCmd := exec.Command("bash", "-c", scriptPreamble+h.Script)
 	hookCmd.Env = env

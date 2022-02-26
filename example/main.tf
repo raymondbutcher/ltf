@@ -7,7 +7,7 @@ variable "byte_length" {
 }
 
 variable "color" {
-  type = string
+  type    = string
   default = ""
 }
 
@@ -15,8 +15,9 @@ variable "env" {
   type = string
 }
 
-variable "hook" {
-  type = string
+variable "secret" {
+  type      = string
+  sensitive = true
 }
 
 resource "random_id" "this" {
@@ -24,6 +25,7 @@ resource "random_id" "this" {
   prefix      = "${var.env}-"
 }
 
-output "hook" {
-  value = var.hook
+output "secret" {
+  value     = var.secret
+  sensitive = true
 }
