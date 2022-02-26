@@ -11,8 +11,8 @@ import (
 	"github.com/zclconf/go-cty/cty/gocty"
 )
 
-// findBackendFiles returns backend files to use in the Terraform command.
-func findBackendFiles(dirs []string, chdir string) (backendFiles []string, err error) {
+// findBackendFilenames returns *.tfbackend files to use for the Terraform backend configuration.
+func findBackendFilenames(dirs []string, chdir string) (filenames []string, err error) {
 
 	// Start at the highest directory (configuration directory)
 	// and go deeper towards the current directory.
@@ -30,11 +30,39 @@ func findBackendFiles(dirs []string, chdir string) (backendFiles []string, err e
 
 		// Add any matching backend files.
 		for _, name := range matchFiles(files, "*.tfbackend") {
-			backendFiles = append(backendFiles, path.Join(dir, name))
+			filenames = append(filenames, path.Join(dir, name))
 		}
 	}
 
-	return backendFiles, nil
+	return filenames, nil
+}
+
+// loadBackendConfiguration reads *.tfbackend files from the specified directories,
+// renders them with Terraform variables, and returns a backend configuration.
+func loadBackendConfiguration(dirs []string, chdir string, vars map[string]*variable) (backend map[string]string, err error) {
+
+	filenames, err := findBackendFilenames(dirs, chdir)
+	if err != nil {
+		return nil, err
+	}
+
+	backend = map[string]string{}
+
+	if len(filenames) == 0 {
+		return backend, nil
+	}
+
+	for _, filename := range filenames {
+		if config, err := parseBackendFile(filename, vars); err != nil {
+			return nil, err
+		} else {
+			for name, value := range config {
+				backend[name] = value
+			}
+		}
+	}
+
+	return backend, nil
 }
 
 // parseBackendFile parses a *.tfbackend file as HCL into a map of strings.

@@ -33,3 +33,17 @@ func marshalEnvValue(v interface{}) (string, error) {
 		return string(jsonBytes), nil
 	}
 }
+
+// setEnvValue adds an environment variable to a list of environment variables
+// in the os.Environ() format. If the variable already exists, it is replaced.
+// Returns an updated list of environment variables.
+func setEnvValue(env []string, name string, value string) (modifiedEnv []string) {
+	prefix := name + "="
+	for _, item := range env {
+		if !strings.HasPrefix(item, prefix) {
+			modifiedEnv = append(modifiedEnv, item)
+		}
+	}
+	modifiedEnv = append(modifiedEnv, name+"="+value)
+	return modifiedEnv
+}

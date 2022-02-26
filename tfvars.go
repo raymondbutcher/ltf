@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/tmccombs/hcl2json/convert"
 )
 
@@ -55,6 +56,94 @@ func filterVariableFiles(files []string) (matches []string) {
 	matches = append(matches, autoFiles...)
 
 	return matches
+}
+
+func loadVariables(args *arguments, dirs []string, chdir string) (vars map[string]*variable, err error) {
+	vars = map[string]*variable{}
+
+	// Parse the Terraform config to get variable defaults.
+	module, diags := tfconfig.LoadModule(chdir)
+	if err := diags.Err(); err != nil {
+		return nil, err
+	}
+	for _, v := range module.Variables {
+		nv := newVariable(v.Name, "")
+		nv.sensitive = v.Sensitive
+		if v.Default != nil {
+			nv.value, err = marshalEnvValue(v.Default)
+			if err != nil {
+				return nil, fmt.Errorf("reading configuration: %w", err)
+			}
+		}
+		vars[v.Name] = nv
+	}
+
+	// Load variables that environment variables will not able to override
+	// due to Terraform's variables precedence rules.
+	// These will be considered "frozen" values.
+
+	// Load tfvars from the configuration directory.
+	// Terraform will use these values over TF_VAR_name so freeze them.
+	if v, err := readVariablesDir(chdir); err != nil {
+		return nil, err
+	} else {
+		for name, value := range v {
+			if _, found := vars[name]; found {
+				vars[name].value = value
+				vars[name].frozen = true
+			} else {
+				nv := newVariable(name, value)
+				nv.frozen = true
+				vars[name] = nv
+			}
+		}
+	}
+
+	// Load variables from CLI arguments.
+	// Terraform will prefer these values over TF_VAR_name so freeze them
+	// so LTF can return an error if something tries to set a different
+	// value using TF_VAR_name.
+	if v, err := readVariablesArgs(args.virtual); err != nil {
+		return nil, err
+	} else {
+		for name, value := range v {
+			if _, found := vars[name]; found {
+				vars[name].value = value
+				vars[name].frozen = true
+			} else {
+				nv := newVariable(name, value)
+				nv.frozen = true
+				vars[name] = nv
+			}
+		}
+	}
+
+	// Load variables from *.tfvars and *.tfvars.json files.
+	// Use directories in reverse order so variables in deeper directories
+	// overwrite variables in parent directories.
+	for i := len(dirs) - 1; i >= 0; i-- {
+		dir := dirs[i]
+		if dir == chdir {
+			// Files in chdir were handled earlier.
+			continue
+		}
+		if v, err := readVariablesDir(dir); err != nil {
+			return nil, err
+		} else {
+			for name, value := range v {
+				if v, found := vars[name]; found {
+					if v.frozen {
+						return nil, fmt.Errorf("cannot change frozen variable %s from %s", name, dir)
+					}
+					v.value = value
+				} else {
+					vars[name] = newVariable(name, value)
+				}
+			}
+		}
+	}
+
+	return vars, nil
 }
 
 func readVariablesArgs(args []string) (map[string]string, error) {
