@@ -84,8 +84,8 @@ func Run(cwd string, args *arguments.Arguments, env []string) (cmd *exec.Cmd, ex
 			return nil, 1, fmt.Errorf("error loading variables: %w", err)
 		}
 		for _, v := range vars {
-			env = environ.SetValue(env, "TF_VAR_"+v.Name, v.Value)
-			if v.Value != "" {
+			env = environ.SetValue(env, "TF_VAR_"+v.Name, v.StringValue)
+			if v.StringValue != "" {
 				v.Print()
 			}
 		}

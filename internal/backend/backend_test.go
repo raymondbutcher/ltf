@@ -7,19 +7,9 @@ import (
 	"testing"
 
 	"github.com/matryer/is"
+	"github.com/raymondbutcher/ltf/internal/arguments"
 	"github.com/raymondbutcher/ltf/internal/variable"
 )
-
-const backendContents = `
-bucket = "some-bucket"
-key    = "${var.stack}/terraform.tfstate"
-region = var.region
-`
-
-var backendVars = variable.Variables{
-	"stack":  {Name: "stack", Value: "vpc"},
-	"region": {Name: "region", Value: "eu-west-1"},
-}
 
 func TestParseBackendFile(t *testing.T) {
 	is := is.New(t)
@@ -27,16 +17,23 @@ func TestParseBackendFile(t *testing.T) {
 	// Arrange
 
 	tempDir, err := os.MkdirTemp("", "ltf-test-")
-	is.NoErr(err) // error creating temporary directory
+	is.NoErr(err) // error making temporary directory
 	defer os.RemoveAll(tempDir)
 
+	contents, err := ioutil.ReadFile("backend_test.tfbackend")
+	is.NoErr(err) // error reading file
 	filename := path.Join(tempDir, "s3.tfbackend")
-	err = ioutil.WriteFile(filename, []byte(backendContents), 06666)
-	is.NoErr(err) // error creating file
+	err = ioutil.WriteFile(filename, contents, 06666)
+	is.NoErr(err) // error writing file
+
+	args, err := arguments.New([]string{"ltf"}, []string{})
+	is.NoErr(err) // error creating arguments
+	vars, err := variable.Load(args, []string{"."}, ".")
+	is.NoErr(err) // error loading variables
 
 	// Act
 
-	values, err := parseBackendFile(filename, backendVars)
+	values, err := parseBackendFile(filename, vars)
 	is.NoErr(err)
 
 	// Assert
@@ -44,4 +41,6 @@ func TestParseBackendFile(t *testing.T) {
 	is.Equal(values["bucket"], "some-bucket")
 	is.Equal(values["key"], "vpc/terraform.tfstate")
 	is.Equal(values["region"], "eu-west-1")
+	is.Equal(values["extra"], "success")
+	is.Equal(values["encrypted"], "true")
 }

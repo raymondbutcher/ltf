@@ -26,18 +26,11 @@ func (m Hooks) Run(when string, cmd *exec.Cmd, args *arguments.Arguments, vars v
 					if len(name) > 7 && name[:7] == "TF_VAR_" {
 						name = name[7:]
 						value := s[1]
-						if v, found := vars[name]; found {
-							if value != v.Value {
-								if v.Frozen {
-									return fmt.Errorf("cannot change frozen variable %s from hook %s", name, h.Name)
-								}
-								v.Print()
-							}
-						} else {
-							v = variable.New(name, value)
-							vars[name] = v
-							v.Print()
+						v, err := vars.SetValue(name, value, false)
+						if err != nil {
+							return fmt.Errorf("hook %s: %w", h.Name, err)
 						}
+						v.Print()
 					}
 				}
 			}

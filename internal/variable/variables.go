@@ -17,23 +17,76 @@ import (
 
 type Variables map[string]*Variable
 
+// SetValue adds or updates a variable. If freeze is true, it sets the variable to Frozen,
+// and is able to update existing frozen variables. If freeze is false, and there is an
+// existing frozen variable with a different value, it will error.
+func (vars Variables) SetValue(name string, value string, freeze bool) (v *Variable, err error) {
+	var found bool
+
+	v, found = vars[name]
+	if !found {
+		if v, err = New(name, "", value); err != nil {
+			return nil, err
+		}
+		vars[name] = v
+	}
+
+	if !freeze && v.Frozen && v.StringValue != value {
+		return nil, fmt.Errorf("cannot change frozen variable %s", name)
+	}
+
+	if err := v.SetValue(value); err != nil {
+		return nil, err
+	}
+
+	if freeze {
+		v.Frozen = true
+	}
+
+	return v, nil
+}
+
+// SetValues sets multiple variable values. It uses the same freeze logic as SetValue.
+func (vars Variables) SetValues(values map[string]string, freeze bool) error {
+	for name, value := range values {
+		if _, err := vars.SetValue(name, value, freeze); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Load returns variables from CLI arguments, environment variables,
+// the Terraform configuration, and tfvars files.
+//
+// Note about value types, which LTF adheres to:
+//   https://www.terraform.io/language/values/variables#complex-typed-values
+// For convenience, Terraform defaults to interpreting -var and environment
+// variable values as literal strings... However, if a root module variable
+// uses a type constraint to require a complex value (list, set, map, object,
+// or tuple), Terraform will instead attempt to parse its value using the same
+// syntax used within variable definitions files...
 func Load(args *arguments.Arguments, dirs []string, chdir string) (vars Variables, err error) {
 	vars = Variables{}
 
-	// Parse the Terraform config to get variable defaults.
+	// Parse the Terraform config to get variable types and defaults.
 	module, diags := tfconfig.LoadModule(chdir)
 	if err := diags.Err(); err != nil {
 		return nil, err
 	}
 	for _, v := range module.Variables {
-		nv := New(v.Name, "")
-		nv.Sensitive = v.Sensitive
+		value := ""
 		if v.Default != nil {
-			nv.Value, err = environ.MarshalValue(v.Default)
+			value, err = environ.MarshalValue(v.Default)
 			if err != nil {
-				return nil, fmt.Errorf("reading configuration: %w", err)
+				return nil, fmt.Errorf("loading %s default value: %w", v.Name, err)
 			}
 		}
+		nv, err := New(v.Name, v.Type, value)
+		if err != nil {
+			return nil, fmt.Errorf("loading %s variable: %w", v.Name, err)
+		}
+		nv.Sensitive = v.Sensitive
 		vars[v.Name] = nv
 	}
 
@@ -46,15 +99,8 @@ func Load(args *arguments.Arguments, dirs []string, chdir string) (vars Variable
 	if v, err := readVariablesDir(chdir); err != nil {
 		return nil, err
 	} else {
-		for name, value := range v {
-			if _, found := vars[name]; found {
-				vars[name].Value = value
-				vars[name].Frozen = true
-			} else {
-				nv := New(name, value)
-				nv.Frozen = true
-				vars[name] = nv
-			}
+		if err := vars.SetValues(v, true); err != nil {
+			return nil, err
 		}
 	}
 
@@ -66,13 +112,8 @@ func Load(args *arguments.Arguments, dirs []string, chdir string) (vars Variable
 		return nil, err
 	} else {
 		for name, value := range v {
-			if _, found := vars[name]; found {
-				vars[name].Value = value
-				vars[name].Frozen = true
-			} else {
-				nv := New(name, value)
-				nv.Frozen = true
-				vars[name] = nv
+			if _, err := vars.SetValue(name, value, true); err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -90,13 +131,8 @@ func Load(args *arguments.Arguments, dirs []string, chdir string) (vars Variable
 			return nil, err
 		} else {
 			for name, value := range v {
-				if v, found := vars[name]; found {
-					if v.Frozen {
-						return nil, fmt.Errorf("cannot change frozen variable %s from %s", name, dir)
-					}
-					v.Value = value
-				} else {
-					vars[name] = New(name, value)
+				if _, err := vars.SetValue(name, value, false); err != nil {
+					return nil, fmt.Errorf("loading from dir %s: %w", dir, err)
 				}
 			}
 		}

@@ -1,0 +1,5 @@
+bucket    = "some-bucket"
+key       = "${var.stack}/terraform.tfstate"
+region    = var.region
+extra     = var.extra[var.region]
+encrypted = true
