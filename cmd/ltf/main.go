@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/raymondbutcher/ltf/internal/arguments"
+	"github.com/raymondbutcher/ltf/internal/ltf"
 )
 
 func main() {
@@ -12,14 +15,14 @@ func main() {
 		os.Exit(1)
 	}
 	env := os.Environ()
-	args, err := newArguments(os.Args, env)
+	args, err := arguments.New(os.Args, env)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s: error parsing cli arguments: %s\n", os.Args[0], err)
 		os.Exit(1)
 	}
-	_, exitStatus, err := ltf(cwd, args, env)
+	_, exitStatus, err := ltf.Run(cwd, args, env)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s: %s\n", args.bin, err)
+		fmt.Fprintf(os.Stderr, "%s: %s\n", args.Bin, err)
 	}
 	os.Exit(exitStatus)
 }

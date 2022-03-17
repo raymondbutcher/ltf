@@ -1,4 +1,4 @@
-package main
+package environ
 
 import (
 	"encoding/json"
@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-// getEnvValue returns the named environment variable value
+// GetValue returns the named environment variable value
 // from a list of environment variables in the os.Environ() format.
-func getEnvValue(env []string, name string) string {
+func GetValue(env []string, name string) string {
 	prefix := name + "="
 	value := ""
 	for _, item := range env {
@@ -19,10 +19,10 @@ func getEnvValue(env []string, name string) string {
 	return value
 }
 
-// marshalEnvValue returns returns the JSON encoding of v,
+// MarshalValue returns returns the JSON encoding of v,
 // unless it is a string in which case it returns it as-is.
 // The result is suitable for use as a TF_VAR_name environment variable.
-func marshalEnvValue(v interface{}) (string, error) {
+func MarshalValue(v interface{}) (string, error) {
 	if str, ok := v.(string); ok {
 		return str, nil
 	} else {
@@ -34,10 +34,10 @@ func marshalEnvValue(v interface{}) (string, error) {
 	}
 }
 
-// setEnvValue adds an environment variable to a list of environment variables
+// SetValue adds an environment variable to a list of environment variables
 // in the os.Environ() format. If the variable already exists, it is replaced.
 // Returns an updated list of environment variables.
-func setEnvValue(env []string, name string, value string) (modifiedEnv []string) {
+func SetValue(env []string, name string, value string) (modifiedEnv []string) {
 	prefix := name + "="
 	for _, v := range env {
 		if !strings.HasPrefix(v, prefix) {

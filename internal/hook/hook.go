@@ -1,4 +1,4 @@
-package main
+package hook
 
 import (
 	"encoding/json"
@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+
+	"github.com/raymondbutcher/ltf/internal/arguments"
 )
 
 var scriptPreamble = fmt.Sprintf(`#!/bin/bash
@@ -23,7 +25,7 @@ __ltf_env_to_json () {
 trap __ltf_env_to_json EXIT
 `, os.Args[0])
 
-type hook struct {
+type Hook struct {
 	Name   string
 	Before []string `yaml:"before"`
 	After  []string `yaml:"after"`
@@ -31,8 +33,8 @@ type hook struct {
 	Script string   `yaml:"script"`
 }
 
-// match reports whether the hook matches the given event and command combination.
-func (h *hook) match(when string, args *arguments) bool {
+// Match reports whether the hook matches the given event and command combination.
+func (h *Hook) Match(when string, args *arguments.Arguments) bool {
 	hookCmds := []string{}
 	if when == "before" {
 		hookCmds = h.Before
@@ -44,15 +46,15 @@ func (h *hook) match(when string, args *arguments) bool {
 	for _, hookCmd := range hookCmds {
 		if hookCmd == "terraform" {
 			return true
-		} else if args.subcommand != "" && hookCmd == "terraform "+args.subcommand {
+		} else if args.Subcommand != "" && hookCmd == "terraform "+args.Subcommand {
 			return true
 		}
 	}
 	return false
 }
 
-// run executes the hook script and returns the potentially modified environment variables.
-func (h *hook) run(env []string) (modifiedEnv []string, err error) {
+// Run executes the hook script and returns the potentially modified environment variables.
+func (h *Hook) Run(env []string) (modifiedEnv []string, err error) {
 	fmt.Fprintf(os.Stderr, "# %s\n", h.Name)
 
 	hookCmd := exec.Command("bash", "-c", scriptPreamble+h.Script)

@@ -1,4 +1,4 @@
-package main
+package arguments
 
 import (
 	"errors"
@@ -6,52 +6,53 @@ import (
 	"strings"
 
 	"github.com/google/shlex"
+	"github.com/raymondbutcher/ltf/internal/environ"
 )
 
-// arguments contain the raw CLI arguments, plus the "virtual" arguments
+// Arguments contain the raw CLI Arguments, plus the "virtual" Arguments
 // which take into account the TF_CLI_ARGS and TF_CLI_ARGS_name environment variables,
 // plus some extra useful information.
-type arguments struct {
-	bin        string
-	chdir      string
-	cli        []string
-	help       bool
-	subcommand string
-	version    bool
-	virtual    []string
+type Arguments struct {
+	Bin        string
+	Chdir      string
+	Cli        []string
+	Help       bool
+	Subcommand string
+	Version    bool
+	Virtual    []string
 }
 
-// newArguments populates and returns an arguments struct.
-func newArguments(args []string, env []string) (*arguments, error) {
+// New populates and returns an arguments struct.
+func New(args []string, env []string) (*Arguments, error) {
 	if len(args) == 0 {
 		return nil, errors.New("not enough arguments")
 	}
 
-	a := arguments{}
-	a.bin = args[0]
-	a.cli = args
+	a := Arguments{}
+	a.Bin = args[0]
+	a.Cli = args
 
 	virtual, err := getVirtualArgs(args, env)
 	if err != nil {
 		return &a, err
 	}
-	a.virtual = virtual
+	a.Virtual = virtual
 
 	for _, arg := range virtual[1:] {
-		if a.subcommand == "" && len(arg) > 0 && arg[0:1] != "-" {
-			a.subcommand = arg
+		if a.Subcommand == "" && len(arg) > 0 && arg[0:1] != "-" {
+			a.Subcommand = arg
 		} else if arg == "-help" {
-			a.help = true
+			a.Help = true
 		} else if arg == "-version" {
-			a.version = true
+			a.Version = true
 		} else if strings.HasPrefix(arg, "-chdir=") {
-			a.chdir = arg[7:]
+			a.Chdir = arg[7:]
 		}
 	}
 
 	// Version can be called as a flag (handled above) or as a subcommand.
-	if a.subcommand == "version" {
-		a.version = true
+	if a.Subcommand == "version" {
+		a.Version = true
 	}
 
 	return &a, err
@@ -93,7 +94,7 @@ func getVirtualArgs(args []string, env []string) ([]string, error) {
 		}
 	}
 
-	if envArgs, err := shlex.Split(getEnvValue(env, "TF_CLI_ARGS")); err != nil {
+	if envArgs, err := shlex.Split(environ.GetValue(env, "TF_CLI_ARGS")); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", "TF_CLI_ARGS", err)
 	} else {
 		envArgs = cleanArgs(envArgs)
@@ -107,7 +108,7 @@ func getVirtualArgs(args []string, env []string) ([]string, error) {
 
 	if subcommand != "" {
 		envName := "TF_CLI_ARGS_" + subcommand
-		if envArgs, err := shlex.Split(getEnvValue(env, envName)); err != nil {
+		if envArgs, err := shlex.Split(environ.GetValue(env, envName)); err != nil {
 			return nil, fmt.Errorf("parsing %s: %w", envName, err)
 		} else {
 			envArgs = cleanArgs(envArgs)

@@ -1,4 +1,4 @@
-package main
+package backend
 
 import (
 	"io/ioutil"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/matryer/is"
+	"github.com/raymondbutcher/ltf/internal/variable"
 )
 
 const backendContents = `
@@ -15,9 +16,9 @@ key    = "${var.stack}/terraform.tfstate"
 region = var.region
 `
 
-var backendVars = variables{
-	"stack":  {name: "stack", value: "vpc"},
-	"region": {name: "region", value: "eu-west-1"},
+var backendVars = variable.Variables{
+	"stack":  {Name: "stack", Value: "vpc"},
+	"region": {Name: "region", Value: "eu-west-1"},
 }
 
 func TestParseBackendFile(t *testing.T) {

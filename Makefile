@@ -1,3 +1,5 @@
+sources = go.sum $(shell find -name '*.go')
+
 .PHONY: build
 build: test ltf
 
@@ -6,12 +8,12 @@ clean:
 	rm -rf ltf
 
 .PHONY: test
-test: *.go go.sum
+test: $(sources)
 	go test ./...
 
 .PHONY: test
-testv: *.go go.sum
+testv: $(sources)
 	go test -v ./...
 
-ltf: *.go go.sum
-	go build
+ltf: $(sources)
+	go build ./cmd/ltf

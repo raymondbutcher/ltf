@@ -1,17 +1,19 @@
-package main
+package filesystem
 
 import (
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/raymondbutcher/ltf/internal/arguments"
 )
 
-func findDirs(cwd string, args *arguments) (dirs []string, chdir string, err error) {
+func FindDirs(cwd string, args *arguments.Arguments) (dirs []string, chdir string, err error) {
 	// Returns directories to use, including the directory to change to.
 	// Subtle: chdir is sometimes cwd and won't be used
 	// Subtle: dirs always includes chdir (which may be cwd)
 
-	if args.chdir != "" {
+	if args.Chdir != "" {
 		// The -chdir argument was provided.
 		chdir, err = filepath.Abs(chdir)
 		if err != nil {
@@ -89,9 +91,9 @@ func findDirsWithoutChdir(cwd string) ([]string, error) {
 		dirs = append(dirs, dir)
 
 		// Stop if this directory contains configuration files.
-		if files, err = getFileNames(dir); err != nil {
+		if files, err = ReadNames(dir); err != nil {
 			return nil, err
-		} else if len(matchFiles(files, "*.tf")) > 0 || len(matchFiles(files, "*.tf.json")) > 0 {
+		} else if len(MatchNames(files, "*.tf")) > 0 || len(MatchNames(files, "*.tf.json")) > 0 {
 			return dirs, nil
 		}
 
@@ -111,7 +113,17 @@ func findDirsWithoutChdir(cwd string) ([]string, error) {
 	}
 }
 
-func getFileNames(dir string) ([]string, error) {
+func MatchNames(files []string, pattern string) []string {
+	matches := []string{}
+	for _, name := range files {
+		if matched, _ := path.Match(pattern, name); matched {
+			matches = append(matches, name)
+		}
+	}
+	return matches
+}
+
+func ReadNames(dir string) ([]string, error) {
 	file, err := os.Open(dir)
 	if err != nil {
 		return nil, err
@@ -121,14 +133,4 @@ func getFileNames(dir string) ([]string, error) {
 		return nil, err
 	}
 	return names, err
-}
-
-func matchFiles(files []string, pattern string) []string {
-	matches := []string{}
-	for _, name := range files {
-		if matched, _ := path.Match(pattern, name); matched {
-			matches = append(matches, name)
-		}
-	}
-	return matches
 }

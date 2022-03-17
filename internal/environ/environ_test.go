@@ -1,4 +1,4 @@
-package main
+package environ
 
 import (
 	"testing"
@@ -13,6 +13,6 @@ func TestEnvFunctions(t *testing.T) {
 		"TWO=2",
 		"THREE=3",
 	}
-	env = setEnvValue(env, "TWO", "changed")
-	is.Equal(getEnvValue(env, "TWO"), "changed")
+	env = SetValue(env, "TWO", "changed")
+	is.Equal(GetValue(env, "TWO"), "changed")
 }
