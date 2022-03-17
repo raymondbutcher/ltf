@@ -31,7 +31,7 @@ commands or modify the environment before and after Terraform runs.`
 func Run(cwd string, args *arguments.Arguments, env []string) (cmd *exec.Cmd, exitStatus int, err error) {
 	// Special mode to output environment variables after running a hook script.
 	// It outputs in JSON format to avoid issues with multi-line variables.
-	if len(args.Cli) > 1 && args.Cli[1] == "-env-to-json" {
+	if args.EnvToJson {
 		envJsonBytes, err := json.Marshal(env)
 		if err != nil {
 			return nil, 1, fmt.Errorf("%s: error in env-to-json: %w", args.Bin, err)
@@ -109,7 +109,7 @@ func Run(cwd string, args *arguments.Arguments, env []string) (cmd *exec.Cmd, ex
 	}
 
 	// Pass all remaining command line arguments to Terraform.
-	cmd.Args = append(cmd.Args, args.Cli[1:]...)
+	cmd.Args = append(cmd.Args, args.Args[1:]...)
 
 	// Use backend configuration files.
 	if !skipMode && args.Subcommand == "init" {

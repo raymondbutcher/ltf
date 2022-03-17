@@ -9,17 +9,36 @@ import (
 	"github.com/raymondbutcher/ltf/internal/environ"
 )
 
-// Arguments contain the raw CLI Arguments, plus the "virtual" Arguments
-// which take into account the TF_CLI_ARGS and TF_CLI_ARGS_name environment variables,
-// plus some extra useful information.
+// Arguments contains information about the arguments passed into the LTF
+// program via command line arguments and the TF_CLI_ARGS
+// and TF_CLI_ARGS_name environment variables.
 type Arguments struct {
-	Bin        string
-	Chdir      string
-	Cli        []string
-	Help       bool
+	// Bin is the command that was run.
+	Bin string
+
+	// Args holds command line arguments, including the value of Bin as Args[0].
+	Args []string
+
+	// Virtual holds the combined arguments from Args and also extra arguments
+	// provided by the `TF_CLI_ARGS` and `TF_CLI_ARGS_name` environment variables.
+	Virtual []string
+
+	// EnvToJson is true if the -env-to-json flag was specified.
+	// This is a special LTF flag used by the hooks system.
+	EnvToJson bool
+
+	// Chdir is the value of the -chdir global option if specified.
+	Chdir string
+
+	// Help is true if the -help global option is specified.
+	Help bool
+
+	// Version is true if the -version global option is specified
+	// or the subcommand is "version".
+	Version bool
+
+	// Subcommand is the first non-flag argument if there is one.
 	Subcommand string
-	Version    bool
-	Virtual    []string
 }
 
 // New populates and returns an arguments struct.
@@ -29,10 +48,11 @@ func New(args []string, env []string) (*Arguments, error) {
 	}
 
 	a := Arguments{}
+	a.Args = args
 	a.Bin = args[0]
-	a.Cli = args
+	a.EnvToJson = len(args) > 1 && args[1] == "-env-to-json"
 
-	virtual, err := getVirtualArgs(args, env)
+	virtual, err := combine(args, env)
 	if err != nil {
 		return &a, err
 	}
@@ -58,9 +78,9 @@ func New(args []string, env []string) (*Arguments, error) {
 	return &a, err
 }
 
-// cleanArgs converts `-var value` and `-var-file value` arguments
+// clean converts `-var value` and `-var-file value` arguments
 // into `-var=value` and `-var-file=value` respectively.
-func cleanArgs(args []string) []string {
+func clean(args []string) []string {
 	result := []string{}
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -74,10 +94,10 @@ func cleanArgs(args []string) []string {
 	return result
 }
 
-// getVirtualArgs returns the combined arguments from the CLI arguments
+// combine returns the combined arguments from the CLI arguments
 // and the TF_CLI_ARGS and TF_CLI_ARGS_name environment variables.
-func getVirtualArgs(args []string, env []string) ([]string, error) {
-	args = cleanArgs(args)
+func combine(args []string, env []string) ([]string, error) {
+	args = clean(args)
 
 	result := []string{args[0]}
 	subcommand := ""
@@ -97,7 +117,7 @@ func getVirtualArgs(args []string, env []string) ([]string, error) {
 	if envArgs, err := shlex.Split(environ.GetValue(env, "TF_CLI_ARGS")); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", "TF_CLI_ARGS", err)
 	} else {
-		envArgs = cleanArgs(envArgs)
+		envArgs = clean(envArgs)
 		for _, arg := range envArgs {
 			if subcommand == "" && arg[0:1] != "-" {
 				subcommand = arg
@@ -111,7 +131,7 @@ func getVirtualArgs(args []string, env []string) ([]string, error) {
 		if envArgs, err := shlex.Split(environ.GetValue(env, envName)); err != nil {
 			return nil, fmt.Errorf("parsing %s: %w", envName, err)
 		} else {
-			envArgs = cleanArgs(envArgs)
+			envArgs = clean(envArgs)
 			result = append(result, envArgs...)
 		}
 	}
