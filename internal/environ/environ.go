@@ -1,8 +1,6 @@
 package environ
 
 import (
-	"encoding/json"
-	"fmt"
 	"strings"
 )
 
@@ -17,21 +15,6 @@ func GetValue(env []string, name string) string {
 		}
 	}
 	return value
-}
-
-// MarshalValue returns returns the JSON encoding of v,
-// unless it is a string in which case it returns it as-is.
-// The result is suitable for use as a TF_VAR_name environment variable.
-func MarshalValue(v interface{}) (string, error) {
-	if str, ok := v.(string); ok {
-		return str, nil
-	} else {
-		jsonBytes, err := json.Marshal(v)
-		if err != nil {
-			return "", fmt.Errorf("marshal to environment variable: %w", err)
-		}
-		return string(jsonBytes), nil
-	}
 }
 
 // SetValue adds an environment variable to a list of environment variables

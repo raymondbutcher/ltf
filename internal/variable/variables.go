@@ -10,7 +10,6 @@ import (
 
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/raymondbutcher/ltf/internal/arguments"
-	"github.com/raymondbutcher/ltf/internal/environ"
 	"github.com/raymondbutcher/ltf/internal/filesystem"
 	"github.com/tmccombs/hcl2json/convert"
 )
@@ -77,7 +76,7 @@ func Load(args *arguments.Arguments, dirs []string, chdir string) (vars Variable
 	for _, v := range module.Variables {
 		value := ""
 		if v.Default != nil {
-			value, err = environ.MarshalValue(v.Default)
+			value, err = marshalValue(v.Default)
 			if err != nil {
 				return nil, fmt.Errorf("loading %s default value: %w", v.Name, err)
 			}
@@ -167,6 +166,21 @@ func filterVariableFiles(files []string) (matches []string) {
 	return matches
 }
 
+// marshalValue returns the JSON encoding of v,
+// unless it is a string in which case it returns it as-is.
+// The result is suitable for use as a TF_VAR_name environment variable.
+func marshalValue(v interface{}) (string, error) {
+	if str, ok := v.(string); ok {
+		return str, nil
+	} else {
+		jsonBytes, err := json.Marshal(v)
+		if err != nil {
+			return "", fmt.Errorf("marshal to environment variable: %w", err)
+		}
+		return string(jsonBytes), nil
+	}
+}
+
 func readVariablesArgs(args []string) (map[string]string, error) {
 	result := map[string]string{}
 	for _, arg := range args {
@@ -242,7 +256,7 @@ func readVariablesFile(filename string) (map[string]string, error) {
 	}
 
 	for name, val := range vars {
-		env, err := environ.MarshalValue(val)
+		env, err := marshalValue(val)
 		if err != nil {
 			return nil, fmt.Errorf("readVariablesFile reading json: %w", err)
 		}
