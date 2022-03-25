@@ -1,4 +1,4 @@
-sources = go.sum $(shell find -name '*.go')
+sources = go.sum $(shell find . -name '*.go')
 
 .PHONY: build
 build: test ltf
