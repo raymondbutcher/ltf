@@ -11,8 +11,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/matryer/is"
+	"github.com/raymondbutcher/ltf"
 	"github.com/raymondbutcher/ltf/internal/arguments"
-	"github.com/raymondbutcher/ltf/internal/environ"
 )
 
 type TestConfig struct {
@@ -79,12 +79,12 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 	// Act
 
 	cwd := path.Join(tempDir, act.Cwd)
-	env := []string{"LTF_TEST_MODE=1"}
+	env := ltf.NewEnviron("LTF_TEST_MODE=1")
+	for key, val := range act.Env {
+		env = env.SetValue(key, val)
+	}
 	args, err := arguments.New(strings.Split(act.Cmd, " "), env)
 	is.NoErr(err) // error parsing arguments
-	for key, val := range act.Env {
-		env = append(env, key+"="+val)
-	}
 	cmd, exitCode, err := Run(cwd, args, env)
 	is.NoErr(err)
 
@@ -97,10 +97,11 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 	}
 
 	if len(assert.Env) > 0 {
+		env := ltf.NewEnviron(cmd.Env...)
 		for name, expected := range assert.Env {
 			t.Run(name, func(t *testing.T) {
 				is := is.New(t)
-				actual := environ.GetValue(cmd.Env, name)
+				actual := env.GetValue(name)
 				is.Equal(actual, expected) // ltf did not set the expected environment variable
 			})
 		}

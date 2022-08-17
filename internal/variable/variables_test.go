@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/matryer/is"
+	"github.com/raymondbutcher/ltf"
 	"github.com/raymondbutcher/ltf/internal/arguments"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -30,7 +31,7 @@ func TestLoad(t *testing.T) {
 	err = ioutil.WriteFile(path.Join(tempDir, "terraform.tfvars"), contents, 06666)
 	is.NoErr(err) // error creating file
 
-	args, err := arguments.New([]string{"ltf"}, []string{})
+	args, err := arguments.New([]string{"ltf"}, ltf.NewEnviron())
 	is.NoErr(err) // error creating arguments
 
 	// Act

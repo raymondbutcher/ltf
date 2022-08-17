@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/matryer/is"
+	"github.com/raymondbutcher/ltf"
 	"github.com/raymondbutcher/ltf/internal/arguments"
 	"github.com/raymondbutcher/ltf/internal/variable"
 )
@@ -26,7 +27,7 @@ func TestParseBackendFile(t *testing.T) {
 	err = ioutil.WriteFile(filename, contents, 06666)
 	is.NoErr(err) // error writing file
 
-	args, err := arguments.New([]string{"ltf"}, []string{})
+	args, err := arguments.New([]string{"ltf"}, ltf.NewEnviron())
 	is.NoErr(err) // error creating arguments
 	vars, err := variable.Load(args, []string{"."}, ".")
 	is.NoErr(err) // error loading variables

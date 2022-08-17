@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/shlex"
-	"github.com/raymondbutcher/ltf/internal/environ"
+	"github.com/raymondbutcher/ltf"
 )
 
 // Arguments contains information about the arguments passed into the LTF
@@ -42,7 +42,7 @@ type Arguments struct {
 }
 
 // New populates and returns an arguments struct.
-func New(args []string, env []string) (*Arguments, error) {
+func New(args []string, env ltf.Environ) (*Arguments, error) {
 	if len(args) == 0 {
 		return nil, errors.New("not enough arguments")
 	}
@@ -96,7 +96,7 @@ func clean(args []string) []string {
 
 // combine returns the combined arguments from the CLI arguments
 // and the TF_CLI_ARGS and TF_CLI_ARGS_name environment variables.
-func combine(args []string, env []string) ([]string, error) {
+func combine(args []string, env ltf.Environ) ([]string, error) {
 	args = clean(args)
 
 	result := []string{args[0]}
@@ -114,7 +114,7 @@ func combine(args []string, env []string) ([]string, error) {
 		}
 	}
 
-	if envArgs, err := shlex.Split(environ.GetValue(env, "TF_CLI_ARGS")); err != nil {
+	if envArgs, err := shlex.Split(env.GetValue("TF_CLI_ARGS")); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", "TF_CLI_ARGS", err)
 	} else {
 		envArgs = clean(envArgs)
@@ -128,7 +128,7 @@ func combine(args []string, env []string) ([]string, error) {
 
 	if subcommand != "" {
 		envName := "TF_CLI_ARGS_" + subcommand
-		if envArgs, err := shlex.Split(environ.GetValue(env, envName)); err != nil {
+		if envArgs, err := shlex.Split(env.GetValue(envName)); err != nil {
 			return nil, fmt.Errorf("parsing %s: %w", envName, err)
 		} else {
 			envArgs = clean(envArgs)

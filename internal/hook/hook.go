@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/raymondbutcher/ltf"
 	"github.com/raymondbutcher/ltf/internal/arguments"
 )
 
@@ -54,7 +55,7 @@ func (h *Hook) Match(when string, args *arguments.Arguments) bool {
 }
 
 // Run executes the hook script and returns the potentially modified environment variables.
-func (h *Hook) Run(env []string) (modifiedEnv []string, err error) {
+func (h *Hook) Run(env ltf.Environ) (modifiedEnv ltf.Environ, err error) {
 	fmt.Fprintf(os.Stderr, "# %s\n", h.Name)
 
 	hookCmd := exec.Command("bash", "-c", scriptPreamble+h.Script)
