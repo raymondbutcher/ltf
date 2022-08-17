@@ -9,13 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/raymondbutcher/ltf/internal/arguments"
+	"github.com/raymondbutcher/ltf"
 	"github.com/raymondbutcher/ltf/internal/backend"
 	"github.com/raymondbutcher/ltf/internal/environ"
 	"github.com/raymondbutcher/ltf/internal/filesystem"
 	"github.com/raymondbutcher/ltf/internal/hook"
 	"github.com/raymondbutcher/ltf/internal/settings"
-	"github.com/raymondbutcher/ltf/internal/variable"
+	"github.com/raymondbutcher/ltf/internal/terraform"
 )
 
 const helpMessage = `LTF is a transparent wrapper for Terraform; it passes all command line
@@ -28,7 +28,7 @@ LTF also executes hooks defined in the first 'ltf.yaml' file it finds
 in the current directory or parent directories. This can be used to run
 commands or modify the environment before and after Terraform runs.`
 
-func Run(cwd string, args *arguments.Arguments, env []string) (cmd *exec.Cmd, exitStatus int, err error) {
+func Run(cwd string, args *ltf.Arguments, env ltf.Environ) (cmd *exec.Cmd, exitStatus int, err error) {
 	// Special mode to output environment variables after running a hook script.
 	// It outputs in JSON format to avoid issues with multi-line variables.
 	if args.EnvToJson {
@@ -77,13 +77,13 @@ func Run(cwd string, args *arguments.Arguments, env []string) (cmd *exec.Cmd, ex
 	}
 
 	// Load variables from all possible sources.
-	vars := variable.Variables{}
+	vars := terraform.NewVariableService()
 	if !skipMode {
-		vars, err = variable.Load(args, dirs, chdir)
+		err = vars.Load(args, dirs, chdir)
 		if err != nil {
 			return nil, 1, fmt.Errorf("error loading variables: %w", err)
 		}
-		for _, v := range vars {
+		for _, v := range vars.Each() {
 			env = environ.SetValue(env, "TF_VAR_"+v.Name, v.StringValue)
 			if v.StringValue != "" {
 				v.Print()

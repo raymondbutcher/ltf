@@ -5,10 +5,10 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/raymondbutcher/ltf/internal/arguments"
+	"github.com/raymondbutcher/ltf"
 )
 
-func FindDirs(cwd string, args *arguments.Arguments) (dirs []string, chdir string, err error) {
+func FindDirs(cwd string, args *ltf.Arguments) (dirs []string, chdir string, err error) {
 	// Returns directories to use, including the directory to change to.
 	// Subtle: chdir is sometimes cwd and won't be used
 	// Subtle: dirs always includes chdir (which may be cwd)

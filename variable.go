@@ -1,4 +1,4 @@
-package variable
+package ltf
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ type Variable struct {
 	Frozen      bool
 }
 
-func New(name string, vtype string, value string) (*Variable, error) {
+func NewVariable(name string, vtype string, value string) (*Variable, error) {
 	v := &Variable{}
 	v.Name = name
 	v.Type = vtype
@@ -32,7 +32,6 @@ func (v *Variable) Print() {
 		fmt.Fprintf(os.Stderr, "+ TF_VAR_%s=%s\n", v.Name, v.StringValue)
 	}
 }
-
 func (v *Variable) SetValue(value string) error {
 	if v.Type == "" || v.Type == "string" {
 		v.AnyValue = cty.StringVal(value)
@@ -47,4 +46,14 @@ func (v *Variable) SetValue(value string) error {
 	}
 	v.StringValue = value
 	return nil
+}
+
+// VariableService represents a service for managing variables.
+type VariableService interface {
+	Each() []*Variable
+	GetValue(name string) string
+	GetCtyValue(name string) cty.Value
+	Load(args *Arguments, dirs []string, chdir string) error
+	SetValue(name string, value string, freeze bool) (v *Variable, err error)
+	SetValues(values map[string]string, freeze bool) error
 }

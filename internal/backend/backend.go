@@ -8,8 +8,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/raymondbutcher/ltf"
 	"github.com/raymondbutcher/ltf/internal/filesystem"
-	"github.com/raymondbutcher/ltf/internal/variable"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	"github.com/zclconf/go-cty/cty/json"
@@ -17,7 +17,7 @@ import (
 
 // LoadConfiguration reads *.tfbackend files from the specified directories,
 // renders them with Terraform variables, and returns a backend configuration.
-func LoadConfiguration(dirs []string, chdir string, vars variable.Variables) (map[string]string, error) {
+func LoadConfiguration(dirs []string, chdir string, vars ltf.VariableService) (map[string]string, error) {
 	filenames, err := findBackendFiles(dirs, chdir)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func findBackendFiles(dirs []string, chdir string) (filenames []string, err erro
 
 // parseBackendFile parses a *.tfbackend file as HCL into a map of strings.
 // Variables can be used in the same way as *.tf files using the `var` object.
-func parseBackendFile(filename string, vars variable.Variables) (map[string]string, error) {
+func parseBackendFile(filename string, vars ltf.VariableService) (map[string]string, error) {
 	// Parse the file.
 	p := hclparse.NewParser()
 	file, diags := p.ParseHCLFile(filename)
@@ -107,9 +107,9 @@ func parseBackendFile(filename string, vars variable.Variables) (map[string]stri
 }
 
 // varEvalContext returns an EvalContext with a `var` object containing variables.
-func varEvalContext(vars variable.Variables) (*hcl.EvalContext, error) {
+func varEvalContext(vars ltf.VariableService) (*hcl.EvalContext, error) {
 	values := map[string]cty.Value{}
-	for _, v := range vars {
+	for _, v := range vars.Each() {
 		ct, err := gocty.ImpliedType(v.AnyValue)
 		if err != nil {
 			return nil, fmt.Errorf("getting cty type for var.%s (%v): %w", v.Name, v.AnyValue, err)

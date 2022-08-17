@@ -2,10 +2,10 @@ package settings
 
 import (
 	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 
-	"github.com/raymondbutcher/ltf/internal/filesystem"
 	"github.com/raymondbutcher/ltf/internal/hook"
 	"gopkg.in/yaml.v2"
 )
@@ -53,7 +53,11 @@ func findFile(dir string) (string, error) {
 	lastDir := ""
 	for {
 		// Check this directory.
-		names, err := filesystem.ReadNames(dir)
+		f, err := os.Open(dir)
+		if err != nil {
+			return "", err
+		}
+		names, err := f.Readdirnames(0)
 		if err != nil {
 			return "", err
 		}

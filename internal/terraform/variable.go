@@ -1,4 +1,4 @@
-package variable
+package terraform
 
 import (
 	"encoding/json"
@@ -9,22 +9,54 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
-	"github.com/raymondbutcher/ltf/internal/arguments"
+	"github.com/raymondbutcher/ltf"
 	"github.com/raymondbutcher/ltf/internal/filesystem"
 	"github.com/tmccombs/hcl2json/convert"
+	"github.com/zclconf/go-cty/cty"
 )
 
-type Variables map[string]*Variable
+// Ensure service implements interface.
+var _ ltf.VariableService = (*VariableService)(nil)
+
+type VariableService map[string]*ltf.Variable
+
+func NewVariableService() *VariableService {
+	return &VariableService{}
+}
+
+func (vars VariableService) Each() []*ltf.Variable {
+	result := []*ltf.Variable{}
+	for _, v := range vars {
+		result = append(result, v)
+	}
+	return result
+}
+
+func (vars VariableService) GetValue(name string) string {
+	if v, found := vars[name]; found {
+		return v.StringValue
+	} else {
+		return ""
+	}
+}
+
+func (vars VariableService) GetCtyValue(name string) cty.Value {
+	if v, found := vars[name]; found {
+		return v.AnyValue
+	} else {
+		return cty.NilVal
+	}
+}
 
 // SetValue adds or updates a variable. If freeze is true, it sets the variable to Frozen,
 // and is able to update existing frozen variables. If freeze is false, and there is an
 // existing frozen variable with a different value, it will error.
-func (vars Variables) SetValue(name string, value string, freeze bool) (v *Variable, err error) {
+func (vars VariableService) SetValue(name string, value string, freeze bool) (v *ltf.Variable, err error) {
 	var found bool
 
 	v, found = vars[name]
 	if !found {
-		if v, err = New(name, "", value); err != nil {
+		if v, err = ltf.NewVariable(name, "", value); err != nil {
 			return nil, err
 		}
 		vars[name] = v
@@ -46,7 +78,7 @@ func (vars Variables) SetValue(name string, value string, freeze bool) (v *Varia
 }
 
 // SetValues sets multiple variable values. It uses the same freeze logic as SetValue.
-func (vars Variables) SetValues(values map[string]string, freeze bool) error {
+func (vars VariableService) SetValues(values map[string]string, freeze bool) error {
 	for name, value := range values {
 		if _, err := vars.SetValue(name, value, freeze); err != nil {
 			return err
@@ -55,7 +87,7 @@ func (vars Variables) SetValues(values map[string]string, freeze bool) error {
 	return nil
 }
 
-// Load returns variables from CLI arguments, environment variables,
+// Load updates variables from CLI arguments, environment variables,
 // the Terraform configuration, and tfvars files.
 //
 // Note about value types, which LTF adheres to:
@@ -65,25 +97,24 @@ func (vars Variables) SetValues(values map[string]string, freeze bool) error {
 // uses a type constraint to require a complex value (list, set, map, object,
 // or tuple), Terraform will instead attempt to parse its value using the same
 // syntax used within variable definitions files...
-func Load(args *arguments.Arguments, dirs []string, chdir string) (vars Variables, err error) {
-	vars = Variables{}
-
+func (vars VariableService) Load(args *ltf.Arguments, dirs []string, chdir string) error {
 	// Parse the Terraform config to get variable types and defaults.
 	module, diags := tfconfig.LoadModule(chdir)
 	if err := diags.Err(); err != nil {
-		return nil, err
+		return err
 	}
 	for _, v := range module.Variables {
-		value := ""
+		var value string
+		var err error
 		if v.Default != nil {
 			value, err = marshalValue(v.Default)
 			if err != nil {
-				return nil, fmt.Errorf("loading %s default value: %w", v.Name, err)
+				return fmt.Errorf("loading %s default value: %w", v.Name, err)
 			}
 		}
-		nv, err := New(v.Name, v.Type, value)
+		nv, err := ltf.NewVariable(v.Name, v.Type, value)
 		if err != nil {
-			return nil, fmt.Errorf("loading %s variable: %w", v.Name, err)
+			return fmt.Errorf("loading %s variable: %w", v.Name, err)
 		}
 		nv.Sensitive = v.Sensitive
 		vars[v.Name] = nv
@@ -96,10 +127,10 @@ func Load(args *arguments.Arguments, dirs []string, chdir string) (vars Variable
 	// Load tfvars from the configuration directory.
 	// Terraform will use these values over TF_VAR_name so freeze them.
 	if v, err := readVariablesDir(chdir); err != nil {
-		return nil, err
+		return err
 	} else {
 		if err := vars.SetValues(v, true); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -108,11 +139,11 @@ func Load(args *arguments.Arguments, dirs []string, chdir string) (vars Variable
 	// so LTF can return an error if something tries to set a different
 	// value using TF_VAR_name.
 	if v, err := readVariablesArgs(args.Virtual); err != nil {
-		return nil, err
+		return err
 	} else {
 		for name, value := range v {
 			if _, err := vars.SetValue(name, value, true); err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
@@ -127,17 +158,17 @@ func Load(args *arguments.Arguments, dirs []string, chdir string) (vars Variable
 			continue
 		}
 		if v, err := readVariablesDir(dir); err != nil {
-			return nil, err
+			return err
 		} else {
 			for name, value := range v {
 				if _, err := vars.SetValue(name, value, false); err != nil {
-					return nil, fmt.Errorf("loading from dir %s: %w", dir, err)
+					return fmt.Errorf("loading from dir %s: %w", dir, err)
 				}
 			}
 		}
 	}
 
-	return vars, nil
+	return nil
 }
 
 func filterVariableFiles(files []string) (matches []string) {

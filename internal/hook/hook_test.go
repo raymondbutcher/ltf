@@ -4,7 +4,8 @@ import (
 	"testing"
 
 	"github.com/matryer/is"
-	"github.com/raymondbutcher/ltf/internal/arguments"
+	"github.com/raymondbutcher/ltf"
+	"github.com/raymondbutcher/ltf/internal/terraform"
 )
 
 func TestHookMatch(t *testing.T) {
@@ -22,7 +23,7 @@ func TestHookMatch(t *testing.T) {
 		t.Run("with subcommand", func(t *testing.T) {
 			// Act
 
-			args, err := arguments.New([]string{"terraform", "plan"}, []string{})
+			args, err := terraform.NewArguments([]string{"terraform", "plan"}, ltf.Environ{})
 			is.NoErr(err)
 
 			// Assert
@@ -35,7 +36,7 @@ func TestHookMatch(t *testing.T) {
 		t.Run("without subcommand", func(t *testing.T) {
 			// Act
 
-			args, err := arguments.New([]string{"terraform"}, []string{})
+			args, err := terraform.NewArguments([]string{"terraform"}, ltf.Environ{})
 			is.NoErr(err)
 
 			// Assert
@@ -59,7 +60,7 @@ func TestHookMatch(t *testing.T) {
 		t.Run("with subcommand", func(t *testing.T) {
 			// Act
 
-			args, err := arguments.New([]string{"terraform", "apply"}, []string{})
+			args, err := terraform.NewArguments([]string{"terraform", "apply"}, ltf.Environ{})
 			is.NoErr(err)
 
 			// Assert
@@ -72,7 +73,7 @@ func TestHookMatch(t *testing.T) {
 		t.Run("without subcommand", func(t *testing.T) {
 			// Act
 
-			args, err := arguments.New([]string{"terraform"}, []string{})
+			args, err := terraform.NewArguments([]string{"terraform"}, ltf.Environ{})
 			is.NoErr(err)
 
 			// Assert
@@ -85,7 +86,7 @@ func TestHookMatch(t *testing.T) {
 		t.Run("with wrong subcommand", func(t *testing.T) {
 			// Act
 
-			args, err := arguments.New([]string{"terraform", "plan"}, []string{})
+			args, err := terraform.NewArguments([]string{"terraform", "plan"}, ltf.Environ{})
 			is.NoErr(err)
 
 			// Assert

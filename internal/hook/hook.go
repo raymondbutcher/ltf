@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/raymondbutcher/ltf/internal/arguments"
+	"github.com/raymondbutcher/ltf"
 )
 
 var scriptPreamble = fmt.Sprintf(`#!/bin/bash
@@ -34,7 +34,7 @@ type Hook struct {
 }
 
 // Match reports whether the hook matches the given event and command combination.
-func (h *Hook) Match(when string, args *arguments.Arguments) bool {
+func (h *Hook) Match(when string, args *ltf.Arguments) bool {
 	hookCmds := []string{}
 	if when == "before" {
 		hookCmds = h.Before
@@ -54,40 +54,41 @@ func (h *Hook) Match(when string, args *arguments.Arguments) bool {
 }
 
 // Run executes the hook script and returns the potentially modified environment variables.
-func (h *Hook) Run(env []string) (modifiedEnv []string, err error) {
+func (h *Hook) Run(env ltf.Environ) (ltf.Environ, error) {
 	fmt.Fprintf(os.Stderr, "# %s\n", h.Name)
 
 	hookCmd := exec.Command("bash", "-c", scriptPreamble+h.Script)
-	hookCmd.Env = env
+	hookCmd.Env = env.ListValues()
 	hookCmd.Stdin = os.Stdin
 	hookCmd.Stderr = os.Stderr
 
 	stdout, err := hookCmd.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return ltf.Environ{}, err
 	}
 
 	if err := hookCmd.Start(); err != nil {
-		return nil, err
+		return ltf.Environ{}, err
 	}
 
 	bytes, err := ioutil.ReadAll(stdout)
 	if err != nil {
-		return nil, err
+		return ltf.Environ{}, err
 	}
 
 	if err := hookCmd.Wait(); err != nil {
-		return nil, err
+		return ltf.Environ{}, err
 	}
 
 	if len(bytes) == 0 {
-		return nil, errors.New("wrapper script failed to output environment variables")
+		return ltf.Environ{}, errors.New("wrapper script failed to output environment variables")
 	}
 
+	var modifiedEnv []string
 	err = json.Unmarshal(bytes, &modifiedEnv)
 	if err != nil {
-		return nil, err
+		return ltf.Environ{}, err
 	}
 
-	return modifiedEnv, nil
+	return ltf.NewEnviron(modifiedEnv), nil
 }

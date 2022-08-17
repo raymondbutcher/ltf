@@ -1,4 +1,4 @@
-package arguments
+package terraform
 
 import (
 	"errors"
@@ -6,53 +6,22 @@ import (
 	"strings"
 
 	"github.com/google/shlex"
+	"github.com/raymondbutcher/ltf"
 	"github.com/raymondbutcher/ltf/internal/environ"
 )
 
-// Arguments contains information about the arguments passed into the LTF
-// program via command line arguments and the TF_CLI_ARGS
-// and TF_CLI_ARGS_name environment variables.
-type Arguments struct {
-	// Bin is the command that was run.
-	Bin string
-
-	// Args holds command line arguments, including the value of Bin as Args[0].
-	Args []string
-
-	// Virtual holds the combined arguments from Args and also extra arguments
-	// provided by the `TF_CLI_ARGS` and `TF_CLI_ARGS_name` environment variables.
-	Virtual []string
-
-	// EnvToJson is true if the -env-to-json flag was specified.
-	// This is a special LTF flag used by the hooks system.
-	EnvToJson bool
-
-	// Chdir is the value of the -chdir global option if specified.
-	Chdir string
-
-	// Help is true if the -help global option is specified.
-	Help bool
-
-	// Version is true if the -version global option is specified
-	// or the subcommand is "version".
-	Version bool
-
-	// Subcommand is the first non-flag argument if there is one.
-	Subcommand string
-}
-
-// New populates and returns an arguments struct.
-func New(args []string, env []string) (*Arguments, error) {
+// NewArguments populates and returns an arguments struct.
+func NewArguments(args []string, env ltf.Environ) (*ltf.Arguments, error) {
 	if len(args) == 0 {
 		return nil, errors.New("not enough arguments")
 	}
 
-	a := Arguments{}
+	a := ltf.Arguments{}
 	a.Args = args
 	a.Bin = args[0]
 	a.EnvToJson = len(args) > 1 && args[1] == "-env-to-json"
 
-	virtual, err := combine(args, env)
+	virtual, err := combineArguments(args, env)
 	if err != nil {
 		return &a, err
 	}
@@ -78,9 +47,9 @@ func New(args []string, env []string) (*Arguments, error) {
 	return &a, err
 }
 
-// clean converts `-var value` and `-var-file value` arguments
+// cleanArguments converts `-var value` and `-var-file value` arguments
 // into `-var=value` and `-var-file=value` respectively.
-func clean(args []string) []string {
+func cleanArguments(args []string) []string {
 	result := []string{}
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -94,10 +63,10 @@ func clean(args []string) []string {
 	return result
 }
 
-// combine returns the combined arguments from the CLI arguments
+// combineArguments returns the combined arguments from the CLI arguments
 // and the TF_CLI_ARGS and TF_CLI_ARGS_name environment variables.
-func combine(args []string, env []string) ([]string, error) {
-	args = clean(args)
+func combineArguments(args []string, env *ltf.Environ) ([]string, error) {
+	args = cleanArguments(args)
 
 	result := []string{args[0]}
 	subcommand := ""
@@ -117,7 +86,7 @@ func combine(args []string, env []string) ([]string, error) {
 	if envArgs, err := shlex.Split(environ.GetValue(env, "TF_CLI_ARGS")); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", "TF_CLI_ARGS", err)
 	} else {
-		envArgs = clean(envArgs)
+		envArgs = cleanArguments(envArgs)
 		for _, arg := range envArgs {
 			if subcommand == "" && arg[0:1] != "-" {
 				subcommand = arg
@@ -131,7 +100,7 @@ func combine(args []string, env []string) ([]string, error) {
 		if envArgs, err := shlex.Split(environ.GetValue(env, envName)); err != nil {
 			return nil, fmt.Errorf("parsing %s: %w", envName, err)
 		} else {
-			envArgs = clean(envArgs)
+			envArgs = cleanArguments(envArgs)
 			result = append(result, envArgs...)
 		}
 	}

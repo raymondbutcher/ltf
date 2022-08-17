@@ -5,21 +5,20 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/raymondbutcher/ltf/internal/arguments"
-	"github.com/raymondbutcher/ltf/internal/variable"
+	"github.com/raymondbutcher/ltf"
 )
 
 type Hooks map[string]*Hook
 
-func (m Hooks) Run(when string, cmd *exec.Cmd, args *arguments.Arguments, vars variable.Variables) error {
+func (m Hooks) Run(when string, cmd *exec.Cmd, args *ltf.Arguments, vars ltf.VariableService) error {
 	for _, h := range m {
 		if h.Match(when, args) {
-			modifiedEnv, err := h.Run(cmd.Env)
+			modifiedEnv, err := h.Run(ltf.NewEnviron(cmd.Env))
 			if err != nil {
 				return err
 			}
 
-			for _, env := range modifiedEnv {
+			for _, env := range modifiedEnv.ListValues() {
 				s := strings.SplitN(env, "=", 2)
 				if len(s) == 2 {
 					name := s[0]
@@ -34,7 +33,7 @@ func (m Hooks) Run(when string, cmd *exec.Cmd, args *arguments.Arguments, vars v
 					}
 				}
 			}
-			cmd.Env = modifiedEnv
+			cmd.Env = modifiedEnv.ListValues()
 		}
 	}
 	return nil
