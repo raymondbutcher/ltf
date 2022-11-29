@@ -85,7 +85,8 @@ func runTestCase(t *testing.T, arrange ArrangeConfig, act ActConfig, assert Asse
 	}
 	args, err := arguments.New(strings.Split(act.Cmd, " "), env)
 	is.NoErr(err) // error parsing arguments
-	cmd, exitCode, err := Run(cwd, args, env)
+	version := "test"
+	cmd, exitCode, err := Run(cwd, args, env, version)
 	is.NoErr(err)
 
 	// Assert

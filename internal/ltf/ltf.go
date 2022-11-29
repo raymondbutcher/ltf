@@ -28,7 +28,7 @@ LTF also executes hooks defined in the first 'ltf.yaml' file it finds
 in the current directory or parent directories. This can be used to run
 commands or modify the environment before and after Terraform runs.`
 
-func Run(cwd string, args *arguments.Arguments, env ltf.Environ) (cmd *exec.Cmd, exitStatus int, err error) {
+func Run(cwd string, args *arguments.Arguments, env ltf.Environ, version string) (cmd *exec.Cmd, exitStatus int, err error) {
 	// Special mode to output environment variables after running a hook script.
 	// It outputs in JSON format to avoid issues with multi-line variables.
 	if args.EnvToJson {
@@ -109,7 +109,7 @@ func Run(cwd string, args *arguments.Arguments, env ltf.Environ) (cmd *exec.Cmd,
 	}
 
 	// Pass all remaining command line arguments to Terraform.
-	cmd.Args = append(cmd.Args, args.Args[1:]...)
+	cmd.Args = append(cmd.Args, args.CommandLineArgs[1:]...)
 
 	// Use backend configuration files.
 	if !skipMode && args.Subcommand == "init" {
@@ -149,7 +149,7 @@ func Run(cwd string, args *arguments.Arguments, env ltf.Environ) (cmd *exec.Cmd,
 		fmt.Println(helpMessage)
 		fmt.Println("")
 	} else if args.Version {
-		fmt.Printf("LTF %s\n\n", getVersion())
+		fmt.Printf("LTF %s\n\n", version)
 	}
 
 	// Run the Terraform command.

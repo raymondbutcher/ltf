@@ -10,14 +10,14 @@ import (
 )
 
 // Arguments contains information about the arguments passed into the LTF
-// program via command line arguments and the TF_CLI_ARGS
-// and TF_CLI_ARGS_name environment variables.
+// program via command line arguments and environment variables.
 type Arguments struct {
 	// Bin is the command that was run.
 	Bin string
 
-	// Args holds command line arguments, including the value of Bin as Args[0].
-	Args []string
+	// CommandLineArgs holds command line arguments,
+	// including the value of Bin as CommandLineArgs[0].
+	CommandLineArgs []string
 
 	// Virtual holds the combined arguments from Args and also extra arguments
 	// provided by the `TF_CLI_ARGS` and `TF_CLI_ARGS_name` environment variables.
@@ -48,7 +48,7 @@ func New(args []string, env ltf.Environ) (*Arguments, error) {
 	}
 
 	a := Arguments{}
-	a.Args = args
+	a.CommandLineArgs = args
 	a.Bin = args[0]
 	a.EnvToJson = len(args) > 1 && args[1] == "-env-to-json"
 
